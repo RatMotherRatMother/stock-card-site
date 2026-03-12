@@ -286,14 +286,26 @@ def cache_stats() -> dict:
 # Google Sheets Setup
 # --------------------------
 SPREADSHEET_KEY = "1L5rFbJXp77MA_BaoX9wBwPszfg8QtY_ihyOaN6TSUpg"
-JSON_KEYFILE = "centered-being-489415-j5-d615d43fa816.json"
 
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_KEYFILE, scope)
+# Load credentials from environment variable (production / Render)
+# or fall back to a local JSON file that is gitignored (local dev only).
+_creds_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64")
+if _creds_b64:
+    import base64, json as _json
+    _creds_dict = _json.loads(base64.b64decode(_creds_b64).decode("utf-8"))
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(_creds_dict, scope)
+else:
+    # Local development fallback — file must exist locally but is never committed
+    _local_keyfile = os.environ.get(
+        "GOOGLE_KEYFILE", "centered-being-489415-j5-d615d43fa816.json"
+    )
+    creds = ServiceAccountCredentials.from_json_keyfile_name(_local_keyfile, scope)
+
 client = gspread.authorize(creds)
 sheet = client.open_by_key(SPREADSHEET_KEY).sheet1
 

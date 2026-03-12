@@ -297,7 +297,7 @@ scope = [
 _creds_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64")
 if _creds_b64:
     import base64, json as _json
-    _creds_dict = _json.loads(base64.b64decode(_creds_b64).decode("utf-8"))
+    _creds_dict = _json.loads(base64.b64decode(_creds_b64.strip()).decode("utf-8"))
     creds = ServiceAccountCredentials.from_json_keyfile_dict(_creds_dict, scope)
 else:
     # Local development fallback — file must exist locally but is never committed

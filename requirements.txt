@@ -1,6 +1,6 @@
-yfinance
-pandas
-requests
-flask
-gspread
-oauth2client
+flask>=3.0
+yfinance>=0.2
+gspread>=6.0
+oauth2client>=4.1
+pandas>=2.0
+gunicorn>=21.0

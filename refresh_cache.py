@@ -57,7 +57,7 @@ COLLECTION_CACHE_PATH  = os.path.join(DATA_DIR, "collection_cache.json")
 
 # Seconds to pause between yfinance requests to avoid rate-limiting.
 # Increase if you see HTTP 429 / Too Many Requests errors.
-REQUEST_DELAY_SECONDS  = 2
+REQUEST_DELAY_SECONDS  = 1
 
 # ---------------------------------------------------------------------------
 # Google Sheets helpers

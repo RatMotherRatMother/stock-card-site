@@ -45,7 +45,13 @@ SPREADSHEET_KEY = "1L5rFbJXp77MA_BaoX9wBwPszfg8QtY_ihyOaN6TSUpg"
 JSON_KEYFILE    = "centered-being-489415-j5-d615d43fa816.json"
 
 SCRIPT_DIR             = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR               = os.path.join(SCRIPT_DIR, "data")
+# If the CACHE_DIR env var is set (e.g. "/data" on Render with a
+# persistent disk), use that. Otherwise fall back to the local
+# "data/" folder so development works without any changes.
+DATA_DIR               = os.environ.get(
+    "CACHE_DIR",
+    os.path.join(SCRIPT_DIR, "data")
+)
 TRACKER_CACHE_PATH     = os.path.join(DATA_DIR, "tracker_cache.json")
 COLLECTION_CACHE_PATH  = os.path.join(DATA_DIR, "collection_cache.json")
 
@@ -62,7 +68,14 @@ def _get_sheet():
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds  = ServiceAccountCredentials.from_json_keyfile_name(JSON_KEYFILE, scope)
+    import base64 as _b64, json as _js
+    _creds_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64")
+    if _creds_b64:
+        _creds_dict = _js.loads(_b64.b64decode(_creds_b64.strip()).decode("utf-8"))
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(_creds_dict, scope)
+    else:
+        _local_keyfile = os.environ.get("GOOGLE_KEYFILE", JSON_KEYFILE)
+        creds = ServiceAccountCredentials.from_json_keyfile_name(_local_keyfile, scope)
     client = gspread.authorize(creds)
     return client.open_by_key(SPREADSHEET_KEY).sheet1
 

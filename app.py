@@ -46,7 +46,13 @@ app = Flask(__name__)
 # ===========================================================================
 
 # Paths to the two JSON cache files
-DATA_DIR               = os.path.join(os.path.dirname(__file__), "data")
+# If the CACHE_DIR env var is set (e.g. "/data" on Render with a
+# persistent disk), use that. Otherwise fall back to the local
+# "data/" folder so development works without any changes.
+DATA_DIR               = os.environ.get(
+    "CACHE_DIR",
+    os.path.join(os.path.dirname(__file__), "data")
+)
 TRACKER_CACHE_PATH     = os.path.join(DATA_DIR, "tracker_cache.json")
 COLLECTION_CACHE_PATH  = os.path.join(DATA_DIR, "collection_cache.json")
 
@@ -1298,6 +1304,44 @@ def debug_cache_invalidate(symbol):
 </div>
 </body>
 </html>"""
+
+
+# ===========================================================================
+# CACHE REFRESH ROUTE  (called by Render Cron Job via HTTP)
+# ===========================================================================
+
+@app.route("/run-cache-refresh")
+def run_cache_refresh():
+    """
+    Trigger a full cache refresh from inside the web service process.
+    This is called nightly by a Render Cron Job via HTTP GET so the
+    refreshed JSON files are written to the same filesystem the web
+    service reads from.
+
+    Protected by a secret token set as the REFRESH_SECRET env var.
+    Requests without the correct ?token= param are rejected with 403.
+    """
+    import threading
+
+    expected = os.environ.get("REFRESH_SECRET", "")
+    if not expected or request.args.get("token") != expected:
+        return jsonify({"error": "forbidden"}), 403
+
+    def _do_refresh():
+        """Run in a background thread so the HTTP response returns immediately."""
+        try:
+            from refresh_cache import refresh
+            refresh()
+            # After writing fresh JSON files, reload them into memory
+            warm_ticker_cache_from_json()
+            invalidate_rows_cache()
+            print("[REFRESH] Cache refresh completed successfully.")
+        except Exception as e:
+            print(f"[REFRESH] Cache refresh failed: {e}")
+
+    thread = threading.Thread(target=_do_refresh, daemon=True)
+    thread.start()
+    return jsonify({"status": "refresh started"}), 202
 
 
 if __name__ == "__main__":

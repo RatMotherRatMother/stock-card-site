@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Tracker-specific: full-width table, no scroll wrapper */
+        body { overflow-x: auto; }
+
+        .tracker-table-wrap {
+            width: 100%;
+        }
+
+        /* Tighter padding on tracker cells to maximise horizontal space */
+        .tracker-table th,
+        .tracker-table td {
+            padding: 5px 7px;
+            white-space: nowrap;
+        }
+
+        /* Inline forms inside table cells */
+        .cell-form {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .cell-form select  { max-width: 100px; }
+        .cell-form input   { width: 82px; }
+
+        /* ── Deck image filter strip ─────────────────────────────────── */
+        .deck-filter-strip {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-evenly;
+            gap: 12px 8px;
+            margin-bottom: 20px;
+        }
+
+        .deck-filter-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            cursor: pointer;
+            flex: 1 1 320px;
+            max-width: 340px;
+        }
+
+        .deck-filter-label {
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 1.25rem;
+            font-weight: bold;
+            letter-spacing: 0.06em;
+            color: #c8a96a;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+            user-select: none;
+            transition: color 0.15s;
+        }
+
+        .deck-filter-count {
+            font-size: 0.72rem;
+            font-weight: normal;
+            letter-spacing: 0;
+            color: #a09070;
+            margin-left: 2px;
+            transition: color 0.15s;
+        }
+
+        .deck-filter-item:hover .deck-filter-label,
+        .deck-filter-item:hover .deck-filter-count {
+            color: #ffe680;
+        }
+
+        .deck-filter-item--active .deck-filter-count {
+            color: #c8a96a;
+        }
+
+        .deck-filter-img {
+            width: 100%;
+            max-width: 320px;
+            height: auto;
+            display: block;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.55));
+        }
+
+        .deck-filter-item:hover .deck-filter-img {
+            transform: translateY(-4px);
+            border-color: #c8a96a;
+            box-shadow: 0 6px 18px rgba(200,169,106,0.25);
+        }
+
+        /* Active stage — gold glow border, lifted */
+        .deck-filter-item--active .deck-filter-label {
+            color: #ffe680;
+        }
+
+        .deck-filter-item--active .deck-filter-img {
+            border-color: #c8a96a;
+            box-shadow:
+                0 0 0 1px #c8a96a,
+                0 6px 20px rgba(200,169,106,0.40);
+            transform: translateY(-4px);
+        }
+
+        /* Mobile: shrink images a touch, allow 3-per-row wrap */
+        @media (max-width: 600px) {
+            .deck-filter-item { flex: 1 1 140px; max-width: 220px; }
+            .deck-filter-img  { max-width: 200px; }
+            .deck-filter-label { font-size: 1.0rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container" style="max-width: none; padding: 16px 20px;">
+
+<nav>
+    <a href="/tracker" class="active">Tracker</a>
+    <a href="/collection">Collection</a>
+</nav>
+
+<h1>Stock Tracker</h1>
+
+<!-- Stage Filter — Deck Images -->
+{#  deck_img(n): maps a stock count to the correct deck image filename.
+    deck1 = largest (501+), deck8 = smallest (0-10) — reverse labeling. #}
+{% macro deck_img(n) %}
+    {%- if n >= 501 %}deck1.png
+    {%- elif n >= 251 %}deck2.png
+    {%- elif n >= 151 %}deck3.png
+    {%- elif n >= 101 %}deck4.png
+    {%- elif n >= 51  %}deck5.png
+    {%- elif n >= 26  %}deck6.png
+    {%- elif n >= 11  %}deck7.png
+    {%- else          %}deck8.png
+    {%- endif %}
+{%- endmacro %}
+
+<div class="deck-filter-strip">
+    {% set deck_stages = [
+        ("",          "All"),
+        ("graveyard", "Graveyard"),
+        ("0.5",       "0.5"),
+        ("1",         "1"),
+        ("2",         "2"),
+        ("3",         "3")
+    ] %}
+    {% for val, label in deck_stages %}
+    {% set cnt = stage_counts.get(val, 0) %}
+    <a href="{{ url_for('tracker', stage=val, sort_by=sort_by, sort_order=sort_order) }}"
+       class="deck-filter-item{% if selected_stage == val %} deck-filter-item--active{% endif %}"
+       title="Filter: {{ label }}">
+        <span class="deck-filter-label">{{ label }}<span class="deck-filter-count"> ({{ cnt }})</span></span>
+        <img src="/static/images/{{ deck_img(cnt) | trim }}" alt="{{ label }}" class="deck-filter-img">
+    </a>
+    {% endfor %}
+</div>
+
+{% macro sort_th(col_id, label) %}
+    {% set is_active = sort_by == col_id %}
+    {% set next_order = 'asc' if (is_active and sort_order == 'desc') else 'desc' %}
+    <th class="{{ 'sorted' if is_active else '' }}">
+        <a href="{{ url_for('tracker', sort_by=col_id, sort_order=next_order, stage=selected_stage) }}">
+            {{ label }}
+            {% if is_active %}
+                <span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼' }}</span>
+            {% endif %}
+        </a>
+    </th>
+{% endmacro %}
+
+<div class="tracker-table-wrap">
+<table class="tracker-table">
+<thead>
+<tr>
+    <th>Symbol</th>
+    <th>Price</th>
+    {{ sort_th('market_cap',            'Market Cap') }}
+    {{ sort_th('pe_ratio',              'P/E') }}
+    {{ sort_th('current_assets',        'Curr. Assets') }}
+    {{ sort_th('total_debt',            'Total Debt') }}
+    {{ sort_th('total_liabilities',     'Total Liab.') }}
+    {{ sort_th('debt_ratio',            'Debt Ratio') }}
+    {{ sort_th('assets_to_liabilities', 'Assets / Liab.') }}
+    {{ sort_th('roic',                  'ROIC') }}
+    {{ sort_th('gross_margin',          'Gross Mgn') }}
+    {{ sort_th('sg_percent',            'SG%') }}
+    {{ sort_th('earnings_yield',        'Yield') }}
+    <th>Stage</th>
+    <th>Move</th>
+    <th>Alert</th>
+</tr>
+</thead>
+<tbody>
+{% for stock in stocks %}
+<tr>
+    <td><strong>{{ stock.symbol }}</strong></td>
+
+    <td class="{% if stock.color == 'green' %}price-green{% elif stock.color == 'orange' %}price-orange{% elif stock.color == 'red' %}price-red{% endif %}">
+        {{ stock.price if stock.price else 'N/A' }}
+    </td>
+
+    <td>{{ stock.market_cap }}</td>
+    <td>{{ stock.pe_ratio }}</td>
+    <td>{{ stock.current_assets }}</td>
+    <td>{{ stock.total_debt }}</td>
+    <td>{{ stock.total_liabilities }}</td>
+    <td>{{ '%.2f'|format(stock.debt_ratio) if stock.debt_ratio != 'N/A' else 'N/A' }}</td>
+    <td>{{ '%.2f'|format(stock.assets_to_liabilities) if stock.assets_to_liabilities != 'N/A' else 'N/A' }}</td>
+    <td>{{ stock.roic }}</td>
+    <td>{{ stock.gross_margin }}</td>
+    <td>{{ stock.sg_percent }}</td>
+    <td>{{ stock.earnings_yield }}</td>
+
+    <td>{{ stock.stage }}</td>
+
+    <td>
+        <form method="post" action="/tracker" class="cell-form">
+            <input type="hidden" name="symbol" value="{{ stock.symbol }}">
+            <select name="stage">
+                <option value="graveyard" {% if stock.stage == "graveyard" %}selected{% endif %}>Graveyard</option>
+                <option value="0.5"       {% if stock.stage == "0.5" %}selected{% endif %}>0.5</option>
+                <option value="1"         {% if stock.stage == "1" %}selected{% endif %}>1</option>
+                <option value="2"         {% if stock.stage == "2" %}selected{% endif %}>2</option>
+                <option value="3"         {% if stock.stage == "3" %}selected{% endif %}>3</option>
+            </select>
+            <button type="submit">Move</button>
+        </form>
+    </td>
+
+    <td>
+        <form method="post" action="/tracker" class="cell-form">
+            <input type="hidden" name="symbol" value="{{ stock.symbol }}">
+            <input
+                type="number"
+                step="0.01"
+                name="alert_price"
+                value="{{ '%.2f'|format(stock.alert_price) if stock.alert_price is not none else '' }}"
+                placeholder="Set alert"
+            >
+            <button type="submit">Save</button>
+        </form>
+    </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+</div><!-- /.container -->
+</body>
+</html>

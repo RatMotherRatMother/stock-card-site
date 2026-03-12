@@ -1,0 +1,6 @@
+yfinance
+pandas
+requests
+flask
+gspread
+oauth2client

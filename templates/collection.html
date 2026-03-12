@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Collection</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/collection-cards.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="container">
+
+<nav>
+    <a href="/tracker">Tracker</a>
+    <a href="/collection" class="active">Collection</a>
+</nav>
+
+<h1>Collection</h1>
+
+<!-- Stage dropdown -->
+<label for="stage-select" style="font-family:Georgia,serif; font-size:0.84rem; color:#a09070; margin-right:6px;"><strong>Stage:</strong></label>
+<select id="stage-select">
+    <option value="">-- Select a stage --</option>
+    {% for stage in stages %}
+        <option value="{{ stage }}">{{ stage }}</option>
+    {% endfor %}
+</select>
+
+<!-- Symbol list -->
+<div id="symbol-list" style="margin-top: 12px;">
+    <span id="symbol-status">Select a stage to see its symbols.</span>
+</div>
+
+<!-- Move-stage bar -->
+<div id="move-bar">
+    <span id="move-bar-label">Move <strong id="move-bar-symbol">—</strong> to:</span>
+    <div id="move-buttons"></div>
+    <span id="move-feedback"></span>
+</div>
+
+<!-- Loading indicator -->
+<div id="loading-msg" style="display:none;">Loading data…</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Main content: left metrics + right charts                            -->
+<!-- ------------------------------------------------------------------ -->
+<div id="content-area">
+
+    <!-- LEFT: metrics table + CAGR -->
+    <div id="left-col">
+        <h3 id="left-table-title">—</h3>
+        <table id="left-table">
+            <thead><tr id="left-table-head"></tr></thead>
+            <tbody id="left-table-body"></tbody>
+        </table>
+        <div id="cagr-wrap" style="display:none;">
+            <h4>Growth Rates (CAGR)</h4>
+            <table id="cagr-table">
+                <thead><tr><th>Metric</th><th>CAGR</th></tr></thead>
+                <tbody id="cagr-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- RIGHT: charts -->
+    <div id="right-col">
+        <h3 id="charts-title">—</h3>
+        <div id="charts-container"></div>
+    </div>
+
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- JavaScript                                                           -->
+<!-- ------------------------------------------------------------------ -->
+<script>
+    const ALL_STAGES = {{ stages | tojson }};
+
+    // Chart.js warm-parchment defaults
+    Chart.defaults.color       = "#a09070";
+    Chart.defaults.borderColor = "#4a423a";
+
+    const stageSelect     = document.getElementById("stage-select");
+    const moveBar         = document.getElementById("move-bar");
+    const moveBarSymbol   = document.getElementById("move-bar-symbol");
+    const moveButtons     = document.getElementById("move-buttons");
+    const moveFeedback    = document.getElementById("move-feedback");
+    const contentArea     = document.getElementById("content-area");
+    const loadingMsg      = document.getElementById("loading-msg");
+    const leftTitle       = document.getElementById("left-table-title");
+    const leftHead        = document.getElementById("left-table-head");
+    const leftBody        = document.getElementById("left-table-body");
+    const cagrWrap        = document.getElementById("cagr-wrap");
+    const cagrBody        = document.getElementById("cagr-body");
+    const chartsTitle     = document.getElementById("charts-title");
+    const chartsContainer = document.getElementById("charts-container");
+
+    let activeSymbol   = null;
+    let activeStage    = null;
+    let chartInstances = [];
+
+    const LINE_COLOR      = "rgba(200,169,106,1)";
+    const LINE_FILL_COLOR = "rgba(200,169,106,0.10)";
+
+    function toThousands(val) { return val != null ? val / 1000 : null; }
+    function fmtK(val) {
+        if (val == null) return "N/A";
+        return Math.round(val).toLocaleString("en-US");
+    }
+
+    // ------------------------------------------------------------------
+    // Stage dropdown
+    // ------------------------------------------------------------------
+    stageSelect.addEventListener("change", () => {
+        activeStage  = stageSelect.value;
+        activeSymbol = null;
+        resetContent();
+        if (!activeStage) {
+            CollectionCards.clear();
+            return;
+        }
+        loadSymbols(activeStage);
+    });
+
+    function resetContent() {
+        contentArea.classList.remove("visible");
+        moveBar.classList.remove("visible");
+        moveFeedback.textContent  = "";
+        leftHead.innerHTML        = "";
+        leftBody.innerHTML        = "";
+        cagrWrap.style.display    = "none";
+        cagrBody.innerHTML        = "";
+        destroyCharts();
+        chartsContainer.innerHTML = "";
+        // Clear the card carousel and reset its state
+        CollectionCards.clear();
+    }
+
+    function destroyCharts() {
+        chartInstances.forEach(c => c.destroy());
+        chartInstances = [];
+    }
+
+    // ------------------------------------------------------------------
+    // Symbol list — renders card carousel via collection-cards.js
+    // ------------------------------------------------------------------
+    function loadSymbols(stage) {
+        const symbolList = document.getElementById("symbol-list");
+        symbolList.innerHTML = '<span id="symbol-status">Loading…</span>';
+        fetch(`/api/symbols?stage=${encodeURIComponent(stage)}`)
+            .then(r => r.json())
+            .then(data => {
+                // Hand the symbol array off to the card carousel module.
+                // CollectionCards.render() builds the DOM; onSymbolClick
+                // is passed as the click callback so behavior is unchanged.
+                CollectionCards.render(data.symbols || [], (sym, cardEl) => {
+                    onSymbolClick(sym, cardEl);
+                }, stage);
+            })
+            .catch(err => {
+                symbolList.innerHTML = `<span id="symbol-status">Error: ${err}</span>`;
+            });
+    }
+
+    // ------------------------------------------------------------------
+    // Symbol click — triggered by card click via CollectionCards.render
+    // ------------------------------------------------------------------
+    function onSymbolClick(symbol, cardEl) {
+        // Mark the clicked card as active; deactivate all others
+        CollectionCards.setActive(symbol);
+        activeSymbol = symbol;
+
+        moveBarSymbol.textContent = symbol;
+        moveFeedback.textContent  = "";
+        renderMoveButtons(activeStage);
+        moveBar.classList.add("visible");
+
+        contentArea.classList.remove("visible");
+        loadingMsg.style.display  = "block";
+        leftBody.innerHTML        = "";
+        destroyCharts();
+        chartsContainer.innerHTML = "";
+
+        fetch(`/api/stock_data?symbol=${encodeURIComponent(symbol)}`)
+            .then(r => r.json())
+            .then(data => {
+                loadingMsg.style.display = "none";
+                if (data.error) {
+                    leftBody.innerHTML = `<tr><td colspan="2">Error: ${data.error}</td></tr>`;
+                    contentArea.classList.add("visible");
+                    return;
+                }
+                leftTitle.textContent   = `${symbol} — Historical Metrics`;
+                populateRatioTable(leftHead, leftBody, data.left_table);
+                chartsTitle.textContent = `${symbol} — Charts ($000s)`;
+                renderCharts(data.charts || [], data.years || []);
+                contentArea.classList.add("visible");
+            })
+            .catch(err => {
+                loadingMsg.style.display = "none";
+                leftBody.innerHTML = `<tr><td colspan="2">Fetch error: ${err}</td></tr>`;
+                contentArea.classList.add("visible");
+            });
+    }
+
+    // ------------------------------------------------------------------
+    // Line charts
+    // ------------------------------------------------------------------
+    function renderCharts(chartDefs, years) {
+        destroyCharts();
+        chartsContainer.innerHTML = "";
+        if (!chartDefs || chartDefs.length === 0 || !years || years.length === 0) {
+            chartsContainer.innerHTML = '<p style="color:#6a5c48;font-size:0.82rem;">No chart data available.</p>';
+            return;
+        }
+        const labels = [...years].reverse();
+        chartDefs.forEach(def => {
+            const kValues = [...(def.values || [])].reverse().map(toThousands);
+            const card    = document.createElement("div");
+            card.className = "chart-card";
+            const titleEl = document.createElement("p");
+            titleEl.className   = "chart-title";
+            titleEl.textContent = def.label;
+            const box    = document.createElement("div");
+            box.className = "chart-box";
+            const canvas = document.createElement("canvas");
+            box.appendChild(canvas);
+            card.appendChild(titleEl);
+            card.appendChild(box);
+            chartsContainer.appendChild(card);
+            const instance = new Chart(canvas, {
+                type: "line",
+                data: {
+                    labels,
+                    datasets: [{
+                        data:                kValues,
+                        borderColor:         LINE_COLOR,
+                        backgroundColor:     LINE_FILL_COLOR,
+                        borderWidth:         2,
+                        pointRadius:         4,
+                        pointHoverRadius:    6,
+                        pointBackgroundColor: LINE_COLOR,
+                        fill:                true,
+                        tension:             0.3,
+                    }]
+                },
+                options: {
+                    responsive:          true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: "#2b2620",
+                            borderColor:     "#c8a96a",
+                            borderWidth:     1,
+                            titleColor:      "#f8f0d0",
+                            bodyColor:       "#e0d8c8",
+                            callbacks: {
+                                label: ctx => {
+                                    const v = ctx.parsed.y;
+                                    return v != null ? `$${fmtK(v)}K` : "N/A";
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { font: { size: 10, family: "Verdana, Tahoma, sans-serif" }, maxRotation: 0 },
+                            grid:  { display: false },
+                        },
+                        y: {
+                            ticks: {
+                                font: { size: 9, family: "Verdana, Tahoma, sans-serif" },
+                                maxTicksLimit: 5,
+                                callback: v => "$" + Math.round(v).toLocaleString("en-US") + "K",
+                            },
+                            grid: { color: "rgba(255,255,255,0.04)" },
+                        }
+                    }
+                }
+            });
+            chartInstances.push(instance);
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Left metrics table + CAGR
+    // ------------------------------------------------------------------
+    function populateRatioTable(thead, tbody, leftTable) {
+        thead.innerHTML        = "";
+        tbody.innerHTML        = "";
+        cagrWrap.style.display = "none";
+        cagrBody.innerHTML     = "";
+
+        if (!leftTable || !leftTable.years || leftTable.years.length === 0) {
+            const msg = (leftTable && leftTable.error) ? leftTable.error : "No data available.";
+            tbody.innerHTML = `<tr><td colspan="2">${msg}</td></tr>`;
+            return;
+        }
+
+        const headerRow = document.createElement("tr");
+        const labelTh   = document.createElement("th");
+        labelTh.textContent = "Metric";
+        headerRow.appendChild(labelTh);
+        leftTable.years.forEach(yr => {
+            const th = document.createElement("th");
+            th.textContent = yr;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+
+        const yoyLabels = ["Net Income YoY %", "Pre-Tax Income YoY %"];
+        leftTable.ratios.forEach(metric => {
+            const tr      = document.createElement("tr");
+            const labelTd = document.createElement("td");
+            labelTd.textContent = metric.label;
+            tr.appendChild(labelTd);
+            const isYoY = yoyLabels.includes(metric.label);
+            metric.values.forEach(val => {
+                const td = document.createElement("td");
+                td.textContent = val;
+                if (isYoY && val !== "N/A") {
+                    td.classList.add(val.startsWith("+") ? "yoy-pos" : "yoy-neg");
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        if (leftTable.cagr && leftTable.cagr.length > 0) {
+            leftTable.cagr.forEach(item => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `<td>${item.label}</td><td>${item.value}</td>`;
+                cagrBody.appendChild(tr);
+            });
+            cagrWrap.style.display = "block";
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Move-stage
+    // ------------------------------------------------------------------
+    function renderMoveButtons(currentStage) {
+        moveButtons.innerHTML = "";
+        ALL_STAGES.forEach(stage => {
+            if (stage === currentStage) return;
+            const btn = document.createElement("button");
+            btn.className   = "move-btn";
+            btn.textContent = `→ ${stage}`;
+            btn.addEventListener("click", () => moveSymbol(activeSymbol, stage));
+            moveButtons.appendChild(btn);
+        });
+    }
+
+    function moveSymbol(symbol, targetStage) {
+        if (!symbol) return;
+        moveButtons.querySelectorAll(".move-btn").forEach(b => b.disabled = true);
+        moveFeedback.textContent = "Moving…";
+        moveFeedback.style.color = "#a09070";
+
+        fetch("/api/move_symbol", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ symbol, new_stage: targetStage }),
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) {
+                    moveFeedback.textContent = `Error: ${data.error}`;
+                    moveFeedback.style.color = "#e06868";
+                    moveButtons.querySelectorAll(".move-btn").forEach(b => b.disabled = false);
+                    return;
+                }
+                moveFeedback.textContent = `✓ ${symbol} moved to stage ${targetStage}`;
+                moveFeedback.style.color = "#70d888";
+                contentArea.classList.remove("visible");
+                moveBar.classList.remove("visible");
+                activeSymbol = null;
+                loadSymbols(activeStage);
+            })
+            .catch(err => {
+                moveFeedback.textContent = `Fetch error: ${err}`;
+                moveFeedback.style.color = "#e06868";
+                moveButtons.querySelectorAll(".move-btn").forEach(b => b.disabled = false);
+            });
+    }
+</script>
+
+</div><!-- /.container -->
+</body>
+</html>

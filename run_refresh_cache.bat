@@ -1,0 +1,2 @@
+@echo off
+"C:\Users\AlexR\OneDrive\Desktop\Stock Cards\venv\Scripts\python.exe" "C:\Users\AlexR\OneDrive\Desktop\Stock Cards\refresh_cache.py" >> "C:\Users\AlexR\OneDrive\Desktop\Stock Cards\logs\refresh_cache.log" 2>&1

@@ -1289,4 +1289,8 @@ def debug_cache_invalidate(symbol):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Local development only — Render uses Gunicorn and never reaches this block.
+    # Debug mode is read from the FLASK_DEBUG env var (defaults to off).
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    port  = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=debug)

@@ -1307,6 +1307,74 @@ def debug_cache_invalidate(symbol):
 
 
 # ===========================================================================
+# NOTES ROUTES
+# ===========================================================================
+
+NOTES_PATH = os.path.join(
+    os.environ.get("CACHE_DIR", os.path.join(os.path.dirname(__file__), "data")),
+    "notes.json"
+)
+
+def _load_notes() -> dict:
+    """Load all notes from disk. Returns {} if file missing or unreadable."""
+    try:
+        with open(NOTES_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+def _save_notes(notes: dict) -> None:
+    """Atomically write notes dict to disk."""
+    os.makedirs(os.path.dirname(NOTES_PATH), exist_ok=True)
+    tmp = NOTES_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(notes, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, NOTES_PATH)
+
+
+@app.route("/api/notes", methods=["GET"])
+def api_get_notes():
+    """Return notes list for a symbol. GET /api/notes?symbol=AAPL"""
+    symbol = request.args.get("symbol", "").strip().upper()
+    if not symbol:
+        return jsonify({"error": "symbol required"}), 400
+    notes = _load_notes()
+    return jsonify({"symbol": symbol, "notes": notes.get(symbol, [])})
+
+
+@app.route("/api/notes", methods=["POST"])
+def api_post_note():
+    """Add a note for a symbol. POST JSON: {symbol, text}"""
+    data   = request.get_json(silent=True) or {}
+    symbol = str(data.get("symbol", "")).strip().upper()
+    text   = str(data.get("text", "")).strip()
+    if not symbol or not text:
+        return jsonify({"error": "symbol and text required"}), 400
+    notes = _load_notes()
+    if symbol not in notes:
+        notes[symbol] = []
+    from datetime import datetime as _dt
+    notes[symbol].append({
+        "text":      text,
+        "timestamp": _dt.now().strftime("%Y-%m-%d %H:%M"),
+    })
+    _save_notes(notes)
+    return jsonify({"ok": True, "notes": notes[symbol]})
+
+
+@app.route("/api/notes/<symbol>/<int:index>", methods=["DELETE"])
+def api_delete_note(symbol, index):
+    """Delete a note by index. DELETE /api/notes/AAPL/0"""
+    symbol = symbol.strip().upper()
+    notes  = _load_notes()
+    if symbol not in notes or index >= len(notes[symbol]) or index < 0:
+        return jsonify({"error": "note not found"}), 404
+    notes[symbol].pop(index)
+    _save_notes(notes)
+    return jsonify({"ok": True, "notes": notes[symbol]})
+
+
+# ===========================================================================
 # CACHE REFRESH ROUTE  (called by Render Cron Job via HTTP)
 # ===========================================================================
 

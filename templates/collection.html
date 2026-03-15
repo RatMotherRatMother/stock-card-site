@@ -17,14 +17,22 @@
 
 <h1>Collection</h1>
 
-<!-- Stage dropdown -->
-<label for="stage-select" style="font-family:Georgia,serif; font-size:0.84rem; color:#a09070; margin-right:6px;"><strong>Stage:</strong></label>
-<select id="stage-select">
-    <option value="">-- Select a stage --</option>
-    {% for stage in stages %}
-        <option value="{{ stage }}">{{ stage }}</option>
-    {% endfor %}
-</select>
+<!-- Stage dropdown + symbol filter -->
+<div id="controls-row">
+    <div id="stage-control">
+        <label for="stage-select" style="font-family:Georgia,serif; font-size:0.84rem; color:#a09070; margin-right:6px;"><strong>Stage:</strong></label>
+        <select id="stage-select">
+            <option value="">-- Select a stage --</option>
+            {% for stage in stages %}
+                <option value="{{ stage }}">{{ stage }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div id="symbol-filter-control">
+        <label for="symbol-filter" style="font-family:Georgia,serif; font-size:0.84rem; color:#a09070; margin-right:6px;"><strong>Filter:</strong></label>
+        <input type="text" id="symbol-filter" placeholder="Search symbols…" autocomplete="off">
+    </div>
+</div>
 
 <!-- Symbol list -->
 <div id="symbol-list" style="margin-top: 12px;">
@@ -110,6 +118,11 @@
     let activeStage    = null;
     let chartInstances = [];
 
+    const symbolFilter = document.getElementById("symbol-filter");
+    symbolFilter.addEventListener("input", () => {
+        CollectionCards.filter(symbolFilter.value);
+    });
+
     const LINE_COLOR      = "rgba(200,169,106,1)";
     const LINE_FILL_COLOR = "rgba(200,169,106,0.10)";
 
@@ -125,6 +138,7 @@
     stageSelect.addEventListener("change", () => {
         activeStage  = stageSelect.value;
         activeSymbol = null;
+        symbolFilter.value = "";   // clear filter when switching stages
         resetContent();
         if (!activeStage) {
             CollectionCards.clear();

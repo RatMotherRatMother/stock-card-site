@@ -307,6 +307,40 @@ tbody td {
 
 #symbol-status { color: #6a5c48; font-style: italic; font-size: 0.82rem; }
 
+/* ── Collection controls row (stage + filter) ───────────────────── */
+#controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 4px;
+}
+
+#stage-control,
+#symbol-filter-control {
+    display: flex;
+    align-items: center;
+}
+
+#symbol-filter {
+    background: #2b2620;
+    border: 1px solid #4a423a;
+    border-radius: 3px;
+    color: #e0d8c8;
+    font-family: Verdana, Tahoma, sans-serif;
+    font-size: 0.82rem;
+    padding: 4px 9px;
+    width: 160px;
+    transition: border-color 0.15s;
+}
+
+#symbol-filter:focus {
+    outline: none;
+    border-color: #c8a96a;
+}
+
+#symbol-filter::placeholder { color: #6a5c48; }
+
 #content-area { display: none; gap: 24px; margin-top: 10px; align-items: flex-start; }
 #content-area.visible { display: flex; flex-wrap: wrap; }
 

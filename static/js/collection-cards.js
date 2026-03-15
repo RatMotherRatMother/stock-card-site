@@ -54,8 +54,8 @@ const CollectionCards = (() => {
         try {
             _sndTear = new Audio("/static/sounds/pack-tear.mp3");
             _sndCard = new Audio("/static/sounds/card-unpack.ogg");
-            _sndTear.volume = 0.25;   // 25% quieter than default
-            _sndCard.volume = 0.15;   // 50% quieter than default
+            _sndTear.volume = 0.75;   // 25% quieter than default
+            _sndCard.volume = 0.50;   // 50% quieter than default
             // Pre-load into memory so first playback has no delay
             _sndTear.load();
             _sndCard.load();
@@ -81,7 +81,8 @@ const CollectionCards = (() => {
     }
 
     // ── Internal state ───────────────────────────────────────────────
-    let _symbols      = [];
+    let _symbols         = [];   // full list from the API
+    let _filteredSymbols = [];   // subset after filter() — what the carousel shows
     let _startIndex   = 0;
     let _onCardClick  = null;
     let _container    = null;   // #symbol-list
@@ -105,7 +106,8 @@ const CollectionCards = (() => {
     //   Shows the card pack; cards appear after the user clicks it.
     // ════════════════════════════════════════════════════════════════
     function render(symbols, onCardClick, stage) {
-        _symbols     = symbols || [];
+        _symbols         = symbols || [];
+        _filteredSymbols = _symbols.slice();   // start unfiltered
         _startIndex  = 0;
         _onCardClick = onCardClick;
         _animating   = false;
@@ -119,7 +121,7 @@ const CollectionCards = (() => {
         if (!_container) return;
         _container.innerHTML = "";
 
-        if (_symbols.length === 0) {
+        if (_filteredSymbols.length === 0) {
             _container.innerHTML = '<span id="symbol-status">No symbols in this stage.</span>';
             return;
         }
@@ -245,7 +247,7 @@ const CollectionCards = (() => {
             const CARDS_START = TEAR_MS * 0.55;   // ~110ms into the tear
 
             setTimeout(() => {
-                const slice = _symbols.slice(_startIndex, _startIndex + MAX_VISIBLE);
+                const slice = _filteredSymbols.slice(_startIndex, _startIndex + MAX_VISIBLE);
                 _cardRow.innerHTML = "";
 
                 // Size the card-row container so it doesn't collapse
@@ -364,7 +366,7 @@ const CollectionCards = (() => {
         _cardRow.style.height   = "";
         _cardRow.style.width    = "";
 
-        const slice = _symbols.slice(_startIndex, _startIndex + MAX_VISIBLE);
+        const slice = _filteredSymbols.slice(_startIndex, _startIndex + MAX_VISIBLE);
         slice.forEach(sym => _cardRow.appendChild(_makeCardEl(sym)));
 
         _updateArrows();
@@ -410,11 +412,11 @@ const CollectionCards = (() => {
     // _updateArrows()
     // ════════════════════════════════════════════════════════════════
     function _updateArrows() {
-        const needArrows = _symbols.length > MAX_VISIBLE;
+        const needArrows = _filteredSymbols.length > MAX_VISIBLE;
         _btnLeft.style.visibility  = needArrows ? "visible" : "hidden";
         _btnRight.style.visibility = needArrows ? "visible" : "hidden";
         _btnLeft.disabled  = (_startIndex === 0);
-        _btnRight.disabled = (_startIndex >= _symbols.length - MAX_VISIBLE);
+        _btnRight.disabled = (_startIndex >= _filteredSymbols.length - MAX_VISIBLE);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -443,7 +445,8 @@ const CollectionCards = (() => {
     // PUBLIC: clear()
     // ════════════════════════════════════════════════════════════════
     function clear() {
-        _symbols    = [];
+        _symbols         = [];
+        _filteredSymbols = [];
         _startIndex = 0;
         _animating  = false;
         _cardImgSrc = FALLBACK_CARD;
@@ -458,7 +461,35 @@ const CollectionCards = (() => {
         if (c) c.innerHTML = '<span id="symbol-status">Select a stage to see its symbols.</span>';
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // PUBLIC: filter(query)
+    //   Called on every keystroke in the search box.
+    //   Filters _filteredSymbols to those containing `query` (case-insensitive).
+    //   If the carousel is already visible (pack already opened), re-renders
+    //   cards immediately.  If the pack hasn't been opened yet, the filtered
+    //   list will be used when it is.
+    // ════════════════════════════════════════════════════════════════
+    function filter(query) {
+        const q = (query || "").trim().toUpperCase();
+        _filteredSymbols = q
+            ? _symbols.filter(s => s.toUpperCase().includes(q))
+            : _symbols.slice();
+        _startIndex = 0;   // reset scroll position on every filter change
+
+        // Only update the DOM if the carousel is currently visible
+        // (i.e. the pack has been opened and cards are showing).
+        if (_cardRow) {
+            if (_filteredSymbols.length === 0) {
+                _cardRow.innerHTML = '<span style="color:#6a5c48;font-style:italic;font-size:0.82rem;padding:8px;">No matches.</span>';
+                _btnLeft.style.visibility  = "hidden";
+                _btnRight.style.visibility = "hidden";
+            } else {
+                _renderCards();
+            }
+        }
+    }
+
     // ── Public API ───────────────────────────────────────────────────
-    return { render, setActive, clear };
+    return { render, setActive, clear, filter };
 
 })();

@@ -371,13 +371,29 @@ tbody td {
 }
 
 #left-table th {
-    background: #3a322b;
-    color: #f8f0d0;
-    font-family: Georgia, "Times New Roman", serif;
-    font-weight: bold;
+    background: transparent;
+    color: #a09070;
+    font-family: Verdana, Tahoma, sans-serif;
+    font-weight: normal;
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    text-align: center;
+    border-bottom: 1px solid #4a423a;
+    border-top: none;
+    border-left: none;
+    border-right: none;
 }
 
-#left-table th:first-child,
+#left-table th:first-child {
+    text-align: left;
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: bold;
+    font-size: 0.77rem;
+    color: #f8f0d0;
+    background: #2b2620;
+    border: 1px solid #4a423a;
+}
+
 #left-table td:first-child {
     text-align: left;
     font-family: Georgia, "Times New Roman", serif;

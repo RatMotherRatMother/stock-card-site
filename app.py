@@ -439,7 +439,7 @@ def get_watchlist():
 
         # Color: frozen — do not modify
         if raw_price is not None and alert_price is not None and alert_price > 0:
-            ratio = float(alert_price) / float(raw_price)
+            ratio = float(raw_price) / float(alert_price)
             if ratio <= 0.80:
                 color = "green"
             elif ratio <= 1.10:

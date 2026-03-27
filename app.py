@@ -1400,7 +1400,11 @@ def run_cache_refresh():
         try:
             from refresh_cache import refresh
             refresh()
-            # After writing fresh JSON files, reload them into memory
+            # FIX: clear stale in-memory cache before reloading from the
+            # freshly-written JSON files. Without this, warm_ticker_cache_from_json()
+            # skips every symbol that is already in memory (if symbol in _ticker_cache:
+            # continue), so the old prices are never replaced.
+            _ticker_cache.clear()
             warm_ticker_cache_from_json()
             invalidate_rows_cache()
             print("[REFRESH] Cache refresh completed successfully.")

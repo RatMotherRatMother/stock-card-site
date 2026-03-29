@@ -512,7 +512,7 @@ function rule72(year1, rate) {
 
     function roundToMagnitude(n, roundUp) {
         if (n <= 0) return n;
-        const mag = Math.pow(10, Math.floor(Math.log10(n)));
+        const mag = Math.pow(10, Math.floor(Math.log10(n)) - 1);
         return roundUp
             ? Math.ceil(n  / mag) * mag
             : Math.floor(n / mag) * mag;

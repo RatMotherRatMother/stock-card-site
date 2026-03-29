@@ -1,1 +1,12 @@
-{}
+{
+  "LSTR": {
+    "firm_strategy": "focus",
+    "assigned_industry": "Trucking",
+    "assigned_strategic_group": "",
+    "competitive_future_goals": "",
+    "firm_strategy_notes": "test",
+    "firm_profitability": {
+      "mobility_barriers": 2
+    }
+  }
+}

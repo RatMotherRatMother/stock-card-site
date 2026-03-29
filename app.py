@@ -313,7 +313,9 @@ else:
     creds = ServiceAccountCredentials.from_json_keyfile_name(_local_keyfile, scope)
 
 client = gspread.authorize(creds)
-sheet = client.open_by_key(SPREADSHEET_KEY).sheet1
+sheet                  = client.open_by_key(SPREADSHEET_KEY).sheet1
+sheet_industries       = client.open_by_key(SPREADSHEET_KEY).worksheet("industries")
+sheet_strategic_groups = client.open_by_key(SPREADSHEET_KEY).worksheet("strategic_groups")
 
 # --------------------------
 # Formatting Helpers
@@ -396,6 +398,88 @@ def invalidate_rows_cache() -> None:
     Call after any write that changes the sheet (stage move, alert update)."""
     global _rows_cache_time
     _rows_cache_time = 0.0
+
+# --------------------------
+# Industries Sheet Reader  (TTL-cached)
+# --------------------------
+_industries_cache: list       = []
+_industries_cache_time: float = 0.0
+
+def get_all_industries() -> list:
+    """Return all non-empty rows from the industries worksheet, cached for
+    ROWS_CACHE_TTL seconds. Each row is a dict with keys matching the
+    sheet column headers: industry, image_url, supplier_power, buyer_power,
+    new_entrants, substitutes, rivalry."""
+    global _industries_cache, _industries_cache_time
+    import time as _time
+    now = _time.monotonic()
+    if _industries_cache and (now - _industries_cache_time) < ROWS_CACHE_TTL:
+        return _industries_cache
+    _industries_cache = [
+        r for r in sheet_industries.get_all_records()
+        if str(r.get("industry", "")).strip() != ""
+    ]
+    _industries_cache_time = now
+    return _industries_cache
+
+def invalidate_industries_cache() -> None:
+    """Force the next get_all_industries() call to re-fetch from Google Sheets.
+    Call after any write that updates an industry rating."""
+    global _industries_cache_time
+    _industries_cache_time = 0.0
+
+# --------------------------
+# Strategic Groups Sheet Reader  (TTL-cached)
+# --------------------------
+_groups_cache: list       = []
+_groups_cache_time: float = 0.0
+
+def get_all_strategic_groups() -> list:
+    """Return all non-empty rows from the strategic_groups worksheet, cached
+    for ROWS_CACHE_TTL seconds. Each row is a dict with keys: group,
+    parent_industry, image_url, customer_overlap, differentiation,
+    number_and_size, strategy_overlap."""
+    global _groups_cache, _groups_cache_time
+    import time as _time
+    now = _time.monotonic()
+    if _groups_cache and (now - _groups_cache_time) < ROWS_CACHE_TTL:
+        return _groups_cache
+    _groups_cache = [
+        r for r in sheet_strategic_groups.get_all_records()
+        if str(r.get("group", "")).strip() != ""
+    ]
+    _groups_cache_time = now
+    return _groups_cache
+
+def invalidate_groups_cache() -> None:
+    """Force the next get_all_strategic_groups() call to re-fetch.
+    Call after any write that updates a strategic group rating."""
+    global _groups_cache_time
+    _groups_cache_time = 0.0
+
+# --------------------------
+# Analysis JSON helpers  (/data/analysis.json)
+# --------------------------
+ANALYSIS_PATH = os.path.join(DATA_DIR, "analysis.json")
+
+def _load_analysis() -> dict:
+    """Load analysis data from disk. Returns {} if file missing or unreadable.
+    The file is created automatically on the first save — no manual setup needed."""
+    try:
+        with open(ANALYSIS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+def _save_analysis(data: dict) -> None:
+    """Atomically write analysis dict to disk.
+    Creates /data/ directory if it does not exist (e.g. first run locally)."""
+    os.makedirs(os.path.dirname(ANALYSIS_PATH), exist_ok=True)
+    tmp = ANALYSIS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, ANALYSIS_PATH)
+
 
 # --------------------------
 # Main Watchlist Builder (Tracker page)
@@ -1149,6 +1233,224 @@ def api_move_symbol():
     return jsonify({"ok": True, "symbol": symbol, "new_stage": new_stage})
 
 
+# ===========================================================================
+# INDUSTRY TAROT ROUTES
+# ===========================================================================
+
+@app.route("/industry")
+def industry():
+    """Render the Industry Tarot page."""
+    return render_template("industry.html")
+
+
+@app.route("/api/industries")
+def api_industries():
+    """
+    Return the full list of industries with all columns.
+    GET /api/industries
+    Response: { "industries": [ { "industry": "Trucking", "image_url": "...",
+                                   "supplier_power": 3, ... }, ... ] }
+    Rating fields are returned as integers (or None if blank in the sheet).
+    """
+    try:
+        rows = get_all_industries()
+        rating_fields = [
+            "supplier_power", "buyer_power", "new_entrants",
+            "substitutes", "rivalry"
+        ]
+        result = []
+        for r in rows:
+            entry = {
+                "industry":  str(r.get("industry", "")).strip(),
+                "image_url": str(r.get("image_url", "")).strip(),
+            }
+            for field in rating_fields:
+                raw = r.get(field, "")
+                try:
+                    entry[field] = int(raw) if str(raw).strip() != "" else None
+                except (ValueError, TypeError):
+                    entry[field] = None
+            result.append(entry)
+        return jsonify({"industries": result})
+    except Exception as e:
+        print(f"[ERROR] api_industries: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/strategic_groups")
+def api_strategic_groups():
+    """
+    Return strategic groups, optionally filtered by parent industry.
+    GET /api/strategic_groups                  → all groups
+    GET /api/strategic_groups?industry=Trucking → only Trucking groups
+    Response: { "groups": [ { "group": "LTL", "parent_industry": "Trucking",
+                               "image_url": "...", "customer_overlap": 3, ... } ] }
+    """
+    try:
+        industry_filter = request.args.get("industry", "").strip()
+        rows = get_all_strategic_groups()
+        rating_fields = [
+            "customer_overlap", "differentiation",
+            "number_and_size", "strategy_overlap"
+        ]
+        result = []
+        for r in rows:
+            parent = str(r.get("parent_industry", "")).strip()
+            if industry_filter and parent != industry_filter:
+                continue
+            entry = {
+                "group":           str(r.get("group", "")).strip(),
+                "parent_industry": parent,
+                "image_url":       str(r.get("image_url", "")).strip(),
+            }
+            for field in rating_fields:
+                raw = r.get(field, "")
+                try:
+                    entry[field] = int(raw) if str(raw).strip() != "" else None
+                except (ValueError, TypeError):
+                    entry[field] = None
+            result.append(entry)
+        return jsonify({"groups": result})
+    except Exception as e:
+        print(f"[ERROR] api_strategic_groups: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/industry_rating", methods=["POST"])
+def api_industry_rating():
+    """
+    Update a single rating cell in the industries worksheet.
+    POST JSON: { "industry": "Trucking", "field": "supplier_power", "value": 4 }
+    Finds the matching row by the industry name and updates that column.
+    Invalidates the industries cache so the next read is fresh.
+    """
+    data     = request.get_json(silent=True) or {}
+    industry = str(data.get("industry", "")).strip()
+    field    = str(data.get("field",    "")).strip()
+    value    = data.get("value")
+
+    allowed_fields = [
+        "supplier_power", "buyer_power", "new_entrants",
+        "substitutes", "rivalry"
+    ]
+    if not industry or field not in allowed_fields:
+        return jsonify({"ok": False, "error": "industry and valid field required"}), 400
+    try:
+        value = int(value)
+        if not 1 <= value <= 5:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "value must be an integer 1–5"}), 400
+
+    try:
+        # Find the column index for this field in the industries sheet
+        headers = sheet_industries.row_values(1)
+        if field not in headers:
+            return jsonify({"ok": False, "error": f"Column '{field}' not found in sheet"}), 400
+        col_idx = headers.index(field) + 1  # gspread is 1-indexed
+
+        # Find the row for this industry
+        cell = sheet_industries.find(industry)
+        if cell is None:
+            return jsonify({"ok": False, "error": f"Industry '{industry}' not found in sheet"}), 404
+
+        sheet_industries.update_cell(cell.row, col_idx, value)
+        invalidate_industries_cache()
+        return jsonify({"ok": True, "industry": industry, "field": field, "value": value})
+    except Exception as e:
+        print(f"[ERROR] api_industry_rating: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/group_rating", methods=["POST"])
+def api_group_rating():
+    """
+    Update a single rating cell in the strategic_groups worksheet.
+    POST JSON: { "group": "LTL", "field": "customer_overlap", "value": 3 }
+    Finds the matching row by the group name and updates that column.
+    Invalidates the groups cache so the next read is fresh.
+    """
+    data  = request.get_json(silent=True) or {}
+    group = str(data.get("group", "")).strip()
+    field = str(data.get("field", "")).strip()
+    value = data.get("value")
+
+    allowed_fields = [
+        "customer_overlap", "differentiation",
+        "number_and_size", "strategy_overlap"
+    ]
+    if not group or field not in allowed_fields:
+        return jsonify({"ok": False, "error": "group and valid field required"}), 400
+    try:
+        value = int(value)
+        if not 1 <= value <= 5:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "value must be an integer 1–5"}), 400
+
+    try:
+        headers = sheet_strategic_groups.row_values(1)
+        if field not in headers:
+            return jsonify({"ok": False, "error": f"Column '{field}' not found in sheet"}), 400
+        col_idx = headers.index(field) + 1
+
+        cell = sheet_strategic_groups.find(group)
+        if cell is None:
+            return jsonify({"ok": False, "error": f"Group '{group}' not found in sheet"}), 404
+
+        sheet_strategic_groups.update_cell(cell.row, col_idx, value)
+        invalidate_groups_cache()
+        return jsonify({"ok": True, "group": group, "field": field, "value": value})
+    except Exception as e:
+        print(f"[ERROR] api_group_rating: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/analysis/stock/<symbol>", methods=["GET"])
+def api_get_stock_analysis(symbol):
+    """
+    Return the full analysis entry for a stock symbol.
+    GET /api/analysis/stock/AAPL
+    Response: { "symbol": "AAPL", "data": { "assigned_industry": "...", ... } }
+    Returns an empty data dict if no analysis has been saved yet.
+    """
+    symbol = symbol.strip().upper()
+    analysis = _load_analysis()
+    return jsonify({"symbol": symbol, "data": analysis.get(symbol, {})})
+
+
+@app.route("/api/analysis/stock/<symbol>", methods=["POST"])
+def api_post_stock_analysis(symbol):
+    """
+    Save (merge) analysis data for a stock symbol.
+    POST /api/analysis/stock/AAPL
+    Body: any subset of the analysis fields, e.g.:
+      { "assigned_industry": "Trucking" }
+      { "firm_strategy": "differentiation" }
+      { "firm_profitability": { "mobility_barriers": 3 } }
+    Nested dicts (like firm_profitability) are merged at one level deep
+    so a partial update does not wipe sibling keys.
+    """
+    symbol = symbol.strip().upper()
+    updates = request.get_json(silent=True) or {}
+    if not updates:
+        return jsonify({"ok": False, "error": "no data provided"}), 400
+
+    analysis = _load_analysis()
+    if symbol not in analysis:
+        analysis[symbol] = {}
+
+    for key, val in updates.items():
+        if isinstance(val, dict) and isinstance(analysis[symbol].get(key), dict):
+            # Merge nested dicts one level deep (e.g. firm_profitability)
+            analysis[symbol][key].update(val)
+        else:
+            analysis[symbol][key] = val
+
+    _save_analysis(analysis)
+    return jsonify({"ok": True, "symbol": symbol, "data": analysis[symbol]})
+
+
 # --------------------------
 # Debug Routes
 # --------------------------
@@ -1213,6 +1515,7 @@ def debug_cache():
     <nav>
         <a href="/tracker">Tracker</a>
         <a href="/collection">Collection</a>
+        <a href="/industry">Industry</a>
     </nav>
     <h1>Cache Status</h1>
 
@@ -1295,7 +1598,11 @@ def debug_cache_invalidate(symbol):
 </head>
 <body>
 <div class="container">
-    <nav><a href="/tracker">Tracker</a><a href="/collection">Collection</a></nav>
+    <nav>
+        <a href="/tracker">Tracker</a>
+        <a href="/collection">Collection</a>
+        <a href="/industry">Industry</a>
+    </nav>
     <h1>Memory Cache Evicted</h1>
     <div class="panel"><p style="color:#e0d8c8">{msg}</p>
     <p style="margin-top:10px; color:#6a5c48; font-size:0.82rem;">
@@ -1334,8 +1641,13 @@ def _save_notes(notes: dict) -> None:
 
 @app.route("/api/notes", methods=["GET"])
 def api_get_notes():
-    """Return notes list for a symbol. GET /api/notes?symbol=AAPL"""
-    symbol = request.args.get("symbol", "").strip().upper()
+    """
+    Return notes for any namespaced key.
+    Supports stock symbols:          GET /api/notes?symbol=AAPL
+    And namespaced industry keys:    GET /api/notes?symbol=industry::Trucking::supplier_power
+    The ?symbol= param is the raw key used in notes.json.
+    """
+    symbol = request.args.get("symbol", "").strip()
     if not symbol:
         return jsonify({"error": "symbol required"}), 400
     notes = _load_notes()
@@ -1344,9 +1656,13 @@ def api_get_notes():
 
 @app.route("/api/notes", methods=["POST"])
 def api_post_note():
-    """Add a note for a symbol. POST JSON: {symbol, text}"""
+    """
+    Add a note for any namespaced key.
+    POST JSON: { "symbol": "industry::Trucking::supplier_power", "text": "..." }
+    The symbol field accepts any string key, including namespaced industry keys.
+    """
     data   = request.get_json(silent=True) or {}
-    symbol = str(data.get("symbol", "")).strip().upper()
+    symbol = str(data.get("symbol", "")).strip()
     text   = str(data.get("text", "")).strip()
     if not symbol or not text:
         return jsonify({"error": "symbol and text required"}), 400
@@ -1362,10 +1678,15 @@ def api_post_note():
     return jsonify({"ok": True, "notes": notes[symbol]})
 
 
-@app.route("/api/notes/<symbol>/<int:index>", methods=["DELETE"])
+@app.route("/api/notes/<path:symbol>/<int:index>", methods=["DELETE"])
 def api_delete_note(symbol, index):
-    """Delete a note by index. DELETE /api/notes/AAPL/0"""
-    symbol = symbol.strip().upper()
+    """
+    Delete a note by index.
+    DELETE /api/notes/AAPL/0
+    DELETE /api/notes/industry::Trucking::supplier_power/0
+    Uses <path:symbol> so that :: in the key is handled correctly.
+    """
+    symbol = symbol.strip()
     notes  = _load_notes()
     if symbol not in notes or index >= len(notes[symbol]) or index < 0:
         return jsonify({"error": "note not found"}), 404

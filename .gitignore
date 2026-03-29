@@ -1,0 +1,8 @@
+centered-being-489415-j5-d615d43fa816.json
+centered-being-489415-j5-d615d43fa816.json
+*-d615d43fa816.json
+
+# Google Cloud service account keys — never commit these
+*-credentials.json
+*-service-account.json
+centered-being-489415-j5*.json

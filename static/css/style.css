@@ -829,3 +829,426 @@ tbody td {
     visibility: hidden;
     pointer-events: none;
 }
+
+/* ================================================================
+   INDUSTRY TAROT PAGE
+   ================================================================ */
+
+/* ── Card grid ──────────────────────────────────────────────────── */
+#tarot-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 8px;
+}
+
+/* ── Individual tarot card ──────────────────────────────────────── */
+.tarot-card {
+    position: relative;
+    width: 180px;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: 1px solid #4a423a;
+    background: linear-gradient(180deg, #2b2620 0%, #3a322b 100%);
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.6);
+    transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+    overflow: hidden;
+}
+
+.tarot-card img {
+    display: block;
+    width: 180px;
+    height: 240px;
+    object-fit: cover;
+}
+
+/* Fallback when no image is set */
+.tarot-card--no-image {
+    height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tarot-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 24px rgba(200,169,106,0.35);
+    border-color: #c8a96a;
+    z-index: 1;
+}
+
+/* Industry name label overlaid at bottom of card */
+.tarot-card-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 6px 8px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.82) 0%, transparent 100%);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.82rem;
+    font-weight: bold;
+    color: #f8f0d0;
+    text-align: center;
+    letter-spacing: 0.04em;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.9);
+    pointer-events: none;
+}
+
+/* ── Modal overlay ──────────────────────────────────────────────── */
+#tarot-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.78);
+    z-index: 1000;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 40px 16px 60px;
+}
+
+#tarot-modal-overlay.visible {
+    display: flex;
+}
+
+/* ── Modal content panel ────────────────────────────────────────── */
+#tarot-modal-content {
+    position: relative;
+    background: linear-gradient(180deg, #2b2620 0%, #3a322b 100%);
+    border: 1px solid #4a423a;
+    box-shadow: 0 0 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(200,169,106,0.15);
+    padding: 32px 36px 40px;
+    width: 100%;
+    max-width: 720px;
+    animation: modal-in 0.22s ease-out;
+}
+
+@keyframes modal-in {
+    from { transform: scale(0.94) translateY(10px); opacity: 0; }
+    to   { transform: scale(1)    translateY(0);    opacity: 1; }
+}
+
+/* Subtle top glare */
+#tarot-modal-content::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%,
+        rgba(255,255,255,0.10) 40%,
+        rgba(255,255,255,0.14) 60%,
+        transparent 100%);
+}
+
+/* ── Modal close button ─────────────────────────────────────────── */
+#tarot-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    background: none;
+    border: 1px solid transparent;
+    color: #6a5c48;
+    font-size: 1.1rem;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    box-shadow: none;
+}
+
+#tarot-modal-close:hover {
+    color: #ffe680;
+    border-color: #4a423a;
+    background: none;
+    box-shadow: none;
+}
+
+/* ── Section dividers inside modal ─────────────────────────────── */
+.analysis-section {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid #4a423a;
+}
+
+.analysis-section:first-of-type {
+    margin-top: 8px;
+    border-top: none;
+    padding-top: 0;
+}
+
+.analysis-section h3 {
+    margin-bottom: 4px;
+}
+
+/* ── Five Forces rows ───────────────────────────────────────────── */
+.force-row {
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(74,66,58,0.5);
+}
+
+.force-row:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.force-label {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.88rem;
+    font-weight: bold;
+    color: #ddd0a8;
+    margin-bottom: 8px;
+}
+
+/* ── Rating buttons 1–5 ─────────────────────────────────────────── */
+.rating-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.rating-btn {
+    width: 36px;
+    height: 32px;
+    padding: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.84rem;
+    font-weight: bold;
+    text-align: center;
+    background: linear-gradient(180deg, #3a322b 0%, #2b2620 100%);
+    border: 1px solid #4a423a;
+    color: #a09070;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s,
+                color 0.12s, box-shadow 0.12s;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+}
+
+.rating-btn:hover:not(:disabled) {
+    border-color: #c8a96a;
+    color: #ffe680;
+    background: linear-gradient(180deg, #4a3e30 0%, #382e22 100%);
+}
+
+.rating-btn.active {
+    background: linear-gradient(180deg, #4a3820 0%, #362c14 100%);
+    border-color: #c8a96a;
+    color: #ffe680;
+    box-shadow:
+        0 0 8px rgba(255,230,128,0.35),
+        1px 1px 3px rgba(0,0,0,0.4);
+}
+
+.rating-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Small feedback text next to rating buttons */
+.rating-feedback {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: #6a5c48;
+    margin-left: 6px;
+}
+
+/* ── Structural analysis blocks ─────────────────────────────────── */
+.structural-block {
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(74,66,58,0.5);
+}
+
+.structural-block:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.structural-label {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.88rem;
+    font-weight: bold;
+    color: #ddd0a8;
+    margin-bottom: 8px;
+}
+
+/* ── Analysis notes boxes (permanent style, not post-it) ────────── */
+.analysis-notes-wrap {
+    margin-top: 6px;
+}
+
+.analysis-notes-input-row {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    margin-bottom: 6px;
+}
+
+.analysis-notes-box {
+    flex: 1;
+    resize: vertical;
+    min-height: 48px;
+    background: #1c1a18;
+    border: 1px solid #4a423a;
+    color: #e0d8c8;
+    font-family: Verdana, Tahoma, sans-serif;
+    font-size: 0.78rem;
+    padding: 6px 8px;
+    line-height: 1.5;
+    transition: border-color 0.15s;
+}
+
+.analysis-notes-box:focus {
+    outline: none;
+    border-color: #c8a96a;
+}
+
+.analysis-notes-box::placeholder { color: #4a423a; }
+
+.analysis-notes-post-btn {
+    white-space: nowrap;
+    padding: 5px 12px;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.analysis-notes-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.analysis-notes-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    background: #1c1a18;
+    border: 1px solid #4a423a;
+    padding: 5px 7px;
+    font-size: 0.77rem;
+    line-height: 1.5;
+}
+
+/* ================================================================
+   COLLECTION PAGE — ANALYSIS AREA
+   ================================================================ */
+
+/* ── Industry / group assignment row ────────────────────────────── */
+.analysis-assign-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.analysis-assign-label {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.84rem;
+    color: #a09070;
+    font-weight: bold;
+    min-width: 120px;
+    flex-shrink: 0;
+}
+
+/* ── Tarot thumbnail images ─────────────────────────────────────── */
+.tarot-thumb {
+    width: 90px;
+    height: 120px;
+    object-fit: cover;
+    border: 1px solid #4a423a;
+    cursor: pointer;
+    display: block;
+    transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+}
+
+.tarot-thumb:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(200,169,106,0.35);
+    border-color: #c8a96a;
+}
+
+/* ── Firm strategy radio buttons ────────────────────────────────── */
+.strategy-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.strategy-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 16px;
+    border: 1px solid #4a423a;
+    background: linear-gradient(180deg, #3a322b 0%, #2b2620 100%);
+    cursor: pointer;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.84rem;
+    color: #a09070;
+    transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.strategy-radio-label input[type="radio"] {
+    accent-color: #c8a96a;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.strategy-radio-label:hover {
+    border-color: #c8a96a;
+    color: #ffe680;
+}
+
+.strategy-radio-label.strategy-radio-active {
+    border-color: #c8a96a;
+    color: #ffe680;
+    background: linear-gradient(180deg, #4a3820 0%, #362c14 100%);
+    box-shadow: 0 0 8px rgba(255,230,128,0.25);
+}
+
+.strategy-radio-text {
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ── Blur-save notes boxes ──────────────────────────────────────── */
+.blur-notes-wrap {
+    position: relative;
+    margin-top: 6px;
+}
+
+.blur-notes-box {
+    width: 100%;
+    resize: vertical;
+    min-height: 52px;
+    background: #1c1a18;
+    border: 1px solid #4a423a;
+    color: #e0d8c8;
+    font-family: Verdana, Tahoma, sans-serif;
+    font-size: 0.78rem;
+    padding: 6px 8px;
+    line-height: 1.5;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+
+.blur-notes-box:focus {
+    outline: none;
+    border-color: #c8a96a;
+}
+
+.blur-notes-box::placeholder { color: #4a423a; }
+
+.blur-save-feedback {
+    display: block;
+    font-size: 0.72rem;
+    font-style: italic;
+    color: #6a5c48;
+    min-height: 14px;
+    margin-top: 2px;
+}

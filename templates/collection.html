@@ -13,6 +13,7 @@
 <nav>
     <a href="/tracker">Tracker</a>
     <a href="/collection" class="active">Collection</a>
+    <a href="/industry">Industry Tarot</a>
 </nav>
 
 <h1>Collection</h1>
@@ -87,7 +88,105 @@
         <div id="charts-container"></div>
     </div>
 
-</div>
+</div><!-- /#content-area -->
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Analysis area — always shown when a stock card is clicked            -->
+<!-- ------------------------------------------------------------------ -->
+<div id="analysis-area" style="display:none; margin-top:28px;">
+
+    <!-- ── Industry + Strategic Group assignment ───────────────────── -->
+    <div class="analysis-section">
+        <h3>Industry &amp; Strategic Group</h3>
+
+        <div class="analysis-assign-row">
+            <label class="analysis-assign-label">Industry:</label>
+            <select id="industry-select">
+                <option value="">— Select an industry —</option>
+            </select>
+        </div>
+
+        <div class="analysis-assign-row" style="margin-top:8px;">
+            <label class="analysis-assign-label">Strategic Group:</label>
+            <select id="group-select" disabled>
+                <option value="">— Select industry first —</option>
+            </select>
+        </div>
+
+        <!-- Tarot thumbnails — appear after selections -->
+        <div id="tarot-thumbs-row" style="display:none; margin-top:14px; gap:16px; align-items:flex-end;">
+            <div id="industry-thumb-wrap" style="display:none; text-align:center;">
+                <img id="industry-thumb" class="tarot-thumb" src="" alt="">
+                <div style="font-size:0.72rem; color:#6a5c48; margin-top:4px;" id="industry-thumb-label"></div>
+            </div>
+            <div id="group-thumb-wrap" style="display:none; text-align:center;">
+                <img id="group-thumb" class="tarot-thumb" src="" alt="">
+                <div style="font-size:0.72rem; color:#6a5c48; margin-top:4px;" id="group-thumb-label"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Firm Level Analysis ─────────────────────────────────────── -->
+    <div class="analysis-section">
+        <h3>Firm Level Analysis</h3>
+        <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:12px;">
+            Select the firm's generic competitive strategy.
+        </p>
+
+        <div class="strategy-radio-group" id="strategy-radio-group">
+            <label class="strategy-radio-label">
+                <input type="radio" name="firm_strategy" value="cost_leadership">
+                <span class="strategy-radio-text">Cost Leadership</span>
+            </label>
+            <label class="strategy-radio-label">
+                <input type="radio" name="firm_strategy" value="differentiation">
+                <span class="strategy-radio-text">Differentiation</span>
+            </label>
+            <label class="strategy-radio-label">
+                <input type="radio" name="firm_strategy" value="focus">
+                <span class="strategy-radio-text">Focus</span>
+            </label>
+        </div>
+
+        <div style="margin-top:12px;">
+            <div class="structural-label" style="margin-bottom:6px;">Strategy Notes</div>
+            <div class="blur-notes-wrap" id="firm-strategy-notes-wrap">
+                <textarea class="analysis-notes-box blur-notes-box"
+                          id="firm-strategy-notes"
+                          rows="3"
+                          placeholder="Notes on the firm's strategy…"></textarea>
+                <span class="blur-save-feedback" id="firm-strategy-notes-feedback"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Competitive Analysis Profile ───────────────────────────── -->
+    <div class="analysis-section">
+        <h3>Competitive Analysis Profile</h3>
+
+        <!-- Four Diagnostic Components -->
+        <h4 style="margin-top:14px; margin-bottom:10px;">Four Diagnostic Components</h4>
+        <div id="diagnostic-container"></div>
+
+        <!-- Offensive Capabilities -->
+        <h4 style="margin-top:18px; margin-bottom:10px;">Offensive Capabilities</h4>
+        <div id="offensive-container"></div>
+
+        <!-- Defensive Capabilities -->
+        <h4 style="margin-top:18px; margin-bottom:10px;">Defensive Capabilities</h4>
+        <div id="defensive-container"></div>
+    </div>
+
+    <!-- ── Firm Level Profitability Factors ───────────────────────── -->
+    <div class="analysis-section">
+        <h3>Firm Level Profitability Factors</h3>
+        <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:14px;">
+            Rate each factor 1 (low) → 5 (high). Saves instantly.
+        </p>
+        <div id="firm-profitability-container"></div>
+    </div>
+
+</div><!-- /#analysis-area -->
 
 <!-- ------------------------------------------------------------------ -->
 <!-- JavaScript                                                           -->
@@ -113,10 +212,13 @@
     const cagrBody        = document.getElementById("cagr-body");
     const chartsTitle     = document.getElementById("charts-title");
     const chartsContainer = document.getElementById("charts-container");
+    const analysisArea    = document.getElementById("analysis-area");
 
-    let activeSymbol   = null;
-    let activeStage    = null;
-    let chartInstances = [];
+    let activeSymbol    = null;
+    let activeStage     = null;
+    let chartInstances  = [];
+    let _allIndustries  = [];   // cached from /api/industries
+    let _allGroups      = [];   // cached from /api/strategic_groups
 
     const symbolFilter = document.getElementById("symbol-filter");
     symbolFilter.addEventListener("input", () => {
@@ -132,13 +234,41 @@
         return Math.round(val).toLocaleString("en-US");
     }
 
+    // ── Analysis config ────────────────────────────────────────────────
+    const DIAGNOSTIC_ITEMS = [
+        { label: "Future Goals",      field: "future_goals"     },
+        { label: "Current Strategy",  field: "current_strategy" },
+        { label: "Assumptions",       field: "assumptions"      },
+        { label: "Capabilities",      field: "capabilities"     },
+    ];
+    const OFFENSIVE_ITEMS = [
+        { label: "Satisfaction with Current Position", field: "satisfaction"    },
+        { label: "Probable Moves",                     field: "probable_moves"  },
+        { label: "Strength and Seriousness of Moves",  field: "strength_moves"  },
+    ];
+    const DEFENSIVE_ITEMS = [
+        { label: "Vulnerability",              field: "vulnerability" },
+        { label: "Provocation",                field: "provocation"   },
+        { label: "Effectiveness of Retaliation", field: "retaliation" },
+    ];
+    const PROFITABILITY_FACTORS = [
+        { label: "Height of Mobility Barriers",          field: "mobility_barriers"        },
+        { label: "Bargaining Power (Customers/Suppliers)", field: "bargaining_power"        },
+        { label: "Vulnerability to Substitute Products", field: "substitute_vulnerability" },
+        { label: "Exposure to Rivalry with Other Groups", field: "rivalry_exposure"        },
+        { label: "Competition in the Group",             field: "group_competition"        },
+        { label: "Scale Compared to Others in Group",   field: "scale"                    },
+        { label: "Cost of Entry into the Group",        field: "entry_cost"               },
+        { label: "Ability to Execute Strategy",         field: "strategy_execution"       },
+    ];
+
     // ------------------------------------------------------------------
     // Stage dropdown
     // ------------------------------------------------------------------
     stageSelect.addEventListener("change", () => {
         activeStage  = stageSelect.value;
         activeSymbol = null;
-        symbolFilter.value = "";   // clear filter when switching stages
+        symbolFilter.value = "";
         resetContent();
         if (!activeStage) {
             CollectionCards.clear();
@@ -150,6 +280,7 @@
     function resetContent() {
         contentArea.classList.remove("visible");
         moveBar.classList.remove("visible");
+        analysisArea.style.display = "none";
         moveFeedback.textContent  = "";
         leftHead.innerHTML        = "";
         leftBody.innerHTML        = "";
@@ -159,7 +290,6 @@
         if (notesList) { notesList.innerHTML = ""; }
         destroyCharts();
         chartsContainer.innerHTML = "";
-        // Clear the card carousel and reset its state
         CollectionCards.clear();
     }
 
@@ -177,9 +307,6 @@
         fetch(`/api/symbols?stage=${encodeURIComponent(stage)}`)
             .then(r => r.json())
             .then(data => {
-                // Hand the symbol array off to the card carousel module.
-                // CollectionCards.render() builds the DOM; onSymbolClick
-                // is passed as the click callback so behavior is unchanged.
                 CollectionCards.render(data.symbols || [], (sym, cardEl) => {
                     onSymbolClick(sym, cardEl);
                 }, stage);
@@ -190,10 +317,9 @@
     }
 
     // ------------------------------------------------------------------
-    // Symbol click — triggered by card click via CollectionCards.render
+    // Symbol click
     // ------------------------------------------------------------------
     function onSymbolClick(symbol, cardEl) {
-        // Mark the clicked card as active; deactivate all others
         CollectionCards.setActive(symbol);
         activeSymbol = symbol;
 
@@ -223,6 +349,7 @@
                 renderCharts(data.charts || [], data.years || []);
                 contentArea.classList.add("visible");
                 loadNotes(symbol);
+                loadAnalysisArea(symbol);
             })
             .catch(err => {
                 loadingMsg.style.display = "none";
@@ -381,7 +508,7 @@
     }
 
     // ------------------------------------------------------------------
-    // Notes
+    // Notes (existing stock notes — unchanged)
     // ------------------------------------------------------------------
     const notesWrap    = document.getElementById("notes-wrap");
     const notesList    = document.getElementById("notes-list");
@@ -453,7 +580,6 @@
             .catch(() => {});
     }
 
-    // Patch notesInput to submit on Ctrl+Enter
     notesInput.addEventListener("keydown", e => {
         if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) notesPostBtn.click();
     });
@@ -481,6 +607,7 @@
                 moveFeedback.style.color = "#70d888";
                 contentArea.classList.remove("visible");
                 moveBar.classList.remove("visible");
+                analysisArea.style.display = "none";
                 activeSymbol = null;
                 loadSymbols(activeStage);
             })
@@ -489,6 +616,387 @@
                 moveFeedback.style.color = "#e06868";
                 moveButtons.querySelectorAll(".move-btn").forEach(b => b.disabled = false);
             });
+    }
+
+    // ==================================================================
+    // ANALYSIS AREA
+    // ==================================================================
+
+    // ── Industry dropdown ─────────────────────────────────────────────
+    const industrySelect   = document.getElementById("industry-select");
+    const groupSelect      = document.getElementById("group-select");
+    const tarotThumbsRow   = document.getElementById("tarot-thumbs-row");
+    const industryThumbWrap = document.getElementById("industry-thumb-wrap");
+    const industryThumb    = document.getElementById("industry-thumb");
+    const industryThumbLbl = document.getElementById("industry-thumb-label");
+    const groupThumbWrap   = document.getElementById("group-thumb-wrap");
+    const groupThumb       = document.getElementById("group-thumb");
+    const groupThumbLbl    = document.getElementById("group-thumb-label");
+
+    // Load industries into the dropdown once on page load
+    async function loadIndustryDropdown() {
+        try {
+            const res  = await fetch("/api/industries");
+            const data = await res.json();
+            _allIndustries = data.industries || [];
+            _allIndustries.forEach(ind => {
+                const opt = document.createElement("option");
+                opt.value       = ind.industry;
+                opt.textContent = ind.industry;
+                industrySelect.appendChild(opt);
+            });
+        } catch (e) {
+            console.error("Could not load industries:", e);
+        }
+    }
+    loadIndustryDropdown();
+
+    // Load all groups once so we can filter client-side
+    async function loadAllGroups() {
+        try {
+            const res  = await fetch("/api/strategic_groups");
+            const data = await res.json();
+            _allGroups = data.groups || [];
+        } catch (e) {
+            console.error("Could not load strategic groups:", e);
+        }
+    }
+    loadAllGroups();
+
+    // When industry changes — filter groups, save assignment, update thumb
+    industrySelect.addEventListener("change", () => {
+        const industry = industrySelect.value;
+
+        // Reset group dropdown
+        groupSelect.innerHTML = '<option value="">— Select a group —</option>';
+        groupSelect.disabled  = !industry;
+        groupThumbWrap.style.display = "none";
+
+        if (industry) {
+            // Filter groups for this industry
+            const filtered = _allGroups.filter(g => g.parent_industry === industry);
+            filtered.forEach(g => {
+                const opt = document.createElement("option");
+                opt.value       = g.group;
+                opt.textContent = g.group;
+                groupSelect.appendChild(opt);
+            });
+
+            // Show industry thumbnail
+            const indRow = _allIndustries.find(i => i.industry === industry);
+            if (indRow && indRow.image_url) {
+                industryThumb.src          = cloudinaryThumb(indRow.image_url);
+                industryThumb.alt          = industry;
+                industryThumbLbl.textContent = industry;
+                industryThumbWrap.style.display = "block";
+                tarotThumbsRow.style.display    = "flex";
+            }
+
+            // Save assignment
+            saveStockAnalysis({ assigned_industry: industry, assigned_strategic_group: "" });
+        } else {
+            industryThumbWrap.style.display = "none";
+            tarotThumbsRow.style.display    = "none";
+            saveStockAnalysis({ assigned_industry: "", assigned_strategic_group: "" });
+        }
+    });
+
+    // When group changes — save assignment, update thumb
+    groupSelect.addEventListener("change", () => {
+        const group = groupSelect.value;
+        if (group) {
+            const grpRow = _allGroups.find(g => g.group === group);
+            if (grpRow && grpRow.image_url) {
+                groupThumb.src          = cloudinaryThumb(grpRow.image_url);
+                groupThumb.alt          = group;
+                groupThumbLbl.textContent = group;
+                groupThumbWrap.style.display = "block";
+                tarotThumbsRow.style.display = "flex";
+            }
+        } else {
+            groupThumbWrap.style.display = "none";
+        }
+        saveStockAnalysis({ assigned_strategic_group: group });
+    });
+
+    // Generate a thumbnail URL from a full Cloudinary URL
+    function cloudinaryThumb(url) {
+        // Inject w_90,h_120,c_fill transformation before the version or filename
+        return url.replace("/upload/", "/upload/w_90,h_120,c_fill/");
+    }
+
+    // ── Firm strategy radio buttons ───────────────────────────────────
+    document.querySelectorAll('input[name="firm_strategy"]').forEach(radio => {
+        radio.addEventListener("change", () => {
+            updateStrategyGlow();
+            saveStockAnalysis({ firm_strategy: radio.value });
+        });
+    });
+
+    function updateStrategyGlow() {
+        document.querySelectorAll(".strategy-radio-label").forEach(lbl => {
+            const radio = lbl.querySelector("input");
+            lbl.classList.toggle("strategy-radio-active", radio.checked);
+        });
+    }
+
+    // ── Firm strategy notes (blur save) ──────────────────────────────
+    const firmStrategyNotes    = document.getElementById("firm-strategy-notes");
+    const firmStrategyFeedback = document.getElementById("firm-strategy-notes-feedback");
+
+    firmStrategyNotes.addEventListener("blur", () => {
+        saveStockAnalysis({ firm_strategy_notes: firmStrategyNotes.value });
+        showBlurFeedback(firmStrategyFeedback);
+    });
+
+    // ── Build competitive profile note boxes ──────────────────────────
+    function buildBlurNoteSection(container, items, keyPrefix) {
+        container.innerHTML = "";
+        items.forEach(item => {
+            const block = document.createElement("div");
+            block.className = "structural-block";
+
+            const lbl = document.createElement("div");
+            lbl.className   = "structural-label";
+            lbl.textContent = item.label;
+
+            const wrap = document.createElement("div");
+            wrap.className = "blur-notes-wrap";
+
+            const ta = document.createElement("textarea");
+            ta.className   = "analysis-notes-box blur-notes-box";
+            ta.rows        = 3;
+            ta.placeholder = `Notes on ${item.label.toLowerCase()}…`;
+            ta.dataset.field = item.field;
+
+            const feedback = document.createElement("span");
+            feedback.className = "blur-save-feedback";
+
+            ta.addEventListener("blur", () => {
+                saveStockAnalysis({ [keyPrefix + item.field]: ta.value });
+                showBlurFeedback(feedback);
+            });
+
+            wrap.appendChild(ta);
+            wrap.appendChild(feedback);
+            block.appendChild(lbl);
+            block.appendChild(wrap);
+            container.appendChild(block);
+        });
+    }
+
+    // Build all competitive profile sections
+    buildBlurNoteSection(
+        document.getElementById("diagnostic-container"),
+        DIAGNOSTIC_ITEMS, "competitive_"
+    );
+    buildBlurNoteSection(
+        document.getElementById("offensive-container"),
+        OFFENSIVE_ITEMS, "competitive_"
+    );
+    buildBlurNoteSection(
+        document.getElementById("defensive-container"),
+        DEFENSIVE_ITEMS, "competitive_"
+    );
+
+    // ── Firm Level Profitability Factors (ratings + notes) ────────────
+    function buildProfitabilityFactors() {
+        const container = document.getElementById("firm-profitability-container");
+        container.innerHTML = "";
+
+        PROFITABILITY_FACTORS.forEach(factor => {
+            const block = document.createElement("div");
+            block.className = "force-row";
+
+            // Label
+            const lbl = document.createElement("div");
+            lbl.className   = "force-label";
+            lbl.textContent = factor.label;
+
+            // Rating buttons
+            const btns = document.createElement("div");
+            btns.className = "rating-btn-group";
+            for (let i = 1; i <= 5; i++) {
+                const btn = document.createElement("button");
+                btn.className      = "rating-btn";
+                btn.textContent    = i;
+                btn.dataset.value  = i;
+                btn.dataset.field  = factor.field;
+                btn.addEventListener("click", () => {
+                    saveProfitabilityRating(factor.field, i, btns);
+                });
+                btns.appendChild(btn);
+            }
+            const feedback = document.createElement("span");
+            feedback.className = "rating-feedback";
+            btns.appendChild(feedback);
+
+            // Notes (blur save)
+            const noteWrap = document.createElement("div");
+            noteWrap.className = "blur-notes-wrap";
+            const ta = document.createElement("textarea");
+            ta.className   = "analysis-notes-box blur-notes-box";
+            ta.rows        = 2;
+            ta.placeholder = `Notes on ${factor.label.toLowerCase()}…`;
+            ta.dataset.field = factor.field;
+            const noteFeedback = document.createElement("span");
+            noteFeedback.className = "blur-save-feedback";
+            ta.addEventListener("blur", () => {
+                saveStockAnalysis({ [`profitability_notes_${factor.field}`]: ta.value });
+                showBlurFeedback(noteFeedback);
+            });
+            noteWrap.appendChild(ta);
+            noteWrap.appendChild(noteFeedback);
+
+            block.appendChild(lbl);
+            block.appendChild(btns);
+            block.appendChild(noteWrap);
+            container.appendChild(block);
+        });
+    }
+    buildProfitabilityFactors();
+
+    // ── Save profitability rating to analysis.json ────────────────────
+    async function saveProfitabilityRating(field, value, btnsContainer) {
+        btnsContainer.querySelectorAll(".rating-btn").forEach(b => {
+            b.classList.toggle("active", parseInt(b.dataset.value) === value);
+            b.disabled = true;
+        });
+        const feedback = btnsContainer.querySelector(".rating-feedback");
+        if (feedback) feedback.textContent = "Saving…";
+
+        try {
+            await saveStockAnalysis({
+                firm_profitability: { [field]: value }
+            });
+            if (feedback) {
+                feedback.textContent = "Saved ✓";
+                setTimeout(() => { feedback.textContent = ""; }, 2000);
+            }
+        } catch (e) {
+            if (feedback) feedback.textContent = "Error";
+        } finally {
+            btnsContainer.querySelectorAll(".rating-btn").forEach(b => { b.disabled = false; });
+        }
+    }
+
+    // ── Generic save to /api/analysis/stock/<symbol> ──────────────────
+    async function saveStockAnalysis(updates) {
+        if (!activeSymbol) return;
+        try {
+            await fetch(`/api/analysis/stock/${encodeURIComponent(activeSymbol)}`, {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify(updates),
+            });
+        } catch (e) {
+            console.error("Analysis save failed:", e);
+        }
+    }
+
+    // ── Brief "Saved" feedback for blur-save fields ───────────────────
+    function showBlurFeedback(el) {
+        if (!el) return;
+        el.textContent = "Saved ✓";
+        setTimeout(() => { el.textContent = ""; }, 2000);
+    }
+
+    // ── Load analysis area for a symbol ──────────────────────────────
+    async function loadAnalysisArea(symbol) {
+        analysisArea.style.display = "block";
+
+        // Reset all fields first
+        industrySelect.value = "";
+        groupSelect.innerHTML = '<option value="">— Select industry first —</option>';
+        groupSelect.disabled  = true;
+        industryThumbWrap.style.display = "none";
+        groupThumbWrap.style.display    = "none";
+        tarotThumbsRow.style.display    = "none";
+        document.querySelectorAll('input[name="firm_strategy"]').forEach(r => r.checked = false);
+        updateStrategyGlow();
+        firmStrategyNotes.value = "";
+
+        // Clear all blur-save textareas
+        document.querySelectorAll(".blur-notes-box").forEach(ta => { ta.value = ""; });
+
+        // Clear profitability rating buttons
+        document.querySelectorAll("#firm-profitability-container .rating-btn")
+            .forEach(b => b.classList.remove("active"));
+
+        try {
+            const res  = await fetch(`/api/analysis/stock/${encodeURIComponent(symbol)}`);
+            const data = await res.json();
+            const d    = data.data || {};
+
+            // Restore industry selection
+            if (d.assigned_industry) {
+                industrySelect.value = d.assigned_industry;
+                industrySelect.dispatchEvent(new Event("change"));
+
+                // Restore group after a tick so the group options are populated
+                setTimeout(() => {
+                    if (d.assigned_strategic_group) {
+                        groupSelect.value = d.assigned_strategic_group;
+                        groupSelect.dispatchEvent(new Event("change"));
+                    }
+                }, 50);
+            }
+
+            // Restore firm strategy radio
+            if (d.firm_strategy) {
+                const radio = document.querySelector(
+                    `input[name="firm_strategy"][value="${d.firm_strategy}"]`
+                );
+                if (radio) { radio.checked = true; updateStrategyGlow(); }
+            }
+
+            // Restore firm strategy notes
+            if (d.firm_strategy_notes) {
+                firmStrategyNotes.value = d.firm_strategy_notes;
+            }
+
+            // Restore competitive profile notes
+            const allFields = [
+                ...DIAGNOSTIC_ITEMS, ...OFFENSIVE_ITEMS, ...DEFENSIVE_ITEMS
+            ];
+            allFields.forEach(item => {
+                const key = "competitive_" + item.field;
+                if (d[key]) {
+                    const ta = document.querySelector(
+                        `.blur-notes-box[data-field="${item.field}"]`
+                    );
+                    if (ta) ta.value = d[key];
+                }
+            });
+
+            // Restore profitability ratings + notes
+            if (d.firm_profitability) {
+                PROFITABILITY_FACTORS.forEach(factor => {
+                    const rating = d.firm_profitability[factor.field];
+                    if (rating) {
+                        document.querySelectorAll(
+                            `#firm-profitability-container .rating-btn[data-field="${factor.field}"]`
+                        ).forEach(b => {
+                            b.classList.toggle("active", parseInt(b.dataset.value) === rating);
+                        });
+                    }
+                });
+            }
+
+            // Restore profitability notes
+            PROFITABILITY_FACTORS.forEach(factor => {
+                const key = `profitability_notes_${factor.field}`;
+                if (d[key]) {
+                    const ta = document.querySelector(
+                        `#firm-profitability-container .blur-notes-box[data-field="${factor.field}"]`
+                    );
+                    if (ta) ta.value = d[key];
+                }
+            });
+
+        } catch (e) {
+            console.error("Could not load analysis data:", e);
+        }
     }
 </script>
 

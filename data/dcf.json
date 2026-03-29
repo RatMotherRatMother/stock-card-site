@@ -1,0 +1,8 @@
+{
+  "LSTR": {
+    "year1_earnings": 12000000,
+    "growth_rate": 2,
+    "discount_rate": 4,
+    "shares_outstanding": 2
+  }
+}

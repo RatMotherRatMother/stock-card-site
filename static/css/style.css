@@ -1365,3 +1365,261 @@ tbody td {
     color: #ffe680;
     box-shadow: 0 0 6px rgba(255,230,128,0.30);
 }
+
+/* ================================================================
+   DCF CALCULATOR PAGE
+   ================================================================ */
+
+/* ── Symbol row ─────────────────────────────────────────────────── */
+.dcf-symbol-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.dcf-symbol-label {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.88rem;
+    font-weight: bold;
+    color: #a09070;
+    flex-shrink: 0;
+}
+
+.dcf-symbol-input {
+    background: #1c1a18;
+    border: 1px solid #4a423a;
+    color: #f8f0d0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.0rem;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+    padding: 6px 12px;
+    width: 120px;
+    text-transform: uppercase;
+    transition: border-color 0.15s;
+}
+
+.dcf-symbol-input:focus {
+    outline: none;
+    border-color: #c8a96a;
+    box-shadow: 0 0 4px rgba(200,169,106,0.25);
+}
+
+#dcf-symbol-status {
+    font-size: 0.78rem;
+    font-style: italic;
+}
+
+/* ── Section wrapper ────────────────────────────────────────────── */
+.dcf-section {
+    margin-bottom: 28px;
+    padding: 20px 22px;
+    background: linear-gradient(180deg, #2b2620 0%, #3a322b 100%);
+    border: 1px solid #4a423a;
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.55);
+    position: relative;
+}
+
+.dcf-section::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%,
+        rgba(255,255,255,0.08) 40%,
+        rgba(255,255,255,0.12) 60%,
+        transparent 100%);
+}
+
+.dcf-section h2 {
+    margin-bottom: 14px;
+}
+
+/* ── Inputs grid ────────────────────────────────────────────────── */
+.dcf-inputs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 18px;
+}
+
+.dcf-input-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dcf-input-label {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.84rem;
+    font-weight: bold;
+    color: #ddd0a8;
+}
+
+.dcf-input {
+    background: #1c1a18;
+    border: 1px solid #4a423a;
+    color: #f8f0d0;
+    font-family: Verdana, Tahoma, sans-serif;
+    font-size: 0.88rem;
+    padding: 6px 10px;
+    transition: border-color 0.15s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.dcf-input:focus {
+    outline: none;
+    border-color: #c8a96a;
+    box-shadow: 0 0 4px rgba(200,169,106,0.22);
+}
+
+.dcf-input-hint {
+    font-size: 0.70rem;
+    color: #6a5c48;
+    font-style: italic;
+}
+
+/* ── DCF results table ──────────────────────────────────────────── */
+.dcf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.77rem;
+    margin-bottom: 0;
+}
+
+.dcf-table thead th {
+    background: #3a322b;
+    color: #f8f0d0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: bold;
+    border: 1px solid #4a423a;
+    padding: 7px 10px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.dcf-table tbody tr:nth-child(odd)  { background: #2b2620; }
+.dcf-table tbody tr:nth-child(even) { background: #252018; }
+
+.dcf-table tbody tr:hover {
+    background: #3a3020;
+    outline: 1px solid rgba(200,169,106,0.20);
+    outline-offset: -1px;
+}
+
+.dcf-table td {
+    border: 1px solid #4a423a;
+    padding: 5px 10px;
+    color: #e0d8c8;
+    vertical-align: middle;
+}
+
+.dcf-year-col {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: bold;
+    color: #a09070 !important;
+    white-space: nowrap;
+    width: 60px;
+}
+
+.dcf-mono {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 0.72rem;
+    color: #8a7860 !important;
+}
+
+.dcf-highlight {
+    font-weight: bold;
+    color: #c8a96a !important;
+    text-align: right;
+}
+
+/* Total / share price rows in tfoot */
+.dcf-total-row td {
+    background: #3a322b !important;
+    border-top: 2px solid #4a423a;
+}
+
+.dcf-total-value {
+    font-size: 0.88rem;
+}
+
+.dcf-share-row td {
+    background: #4a3820 !important;
+    border-top: 1px solid #c8a96a;
+}
+
+/* Gold highlight for the final per-share price */
+.dcf-summary-highlight {
+    color: #ffe680 !important;
+    font-size: 1.0rem;
+    text-shadow: 0 0 8px rgba(255,230,128,0.30);
+}
+
+/* ── Napkin math blocks ─────────────────────────────────────────── */
+.napkin-block {
+    background: #252018;
+    border: 1px solid #4a423a;
+    border-left: 3px solid #c8a96a;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+}
+
+.napkin-block:last-child { margin-bottom: 0; }
+
+.napkin-block-title {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.88rem;
+    color: #ddd0a8;
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+}
+
+/* Individual calculation lines */
+.napkin-lines {
+    margin-bottom: 12px;
+}
+
+.napkin-line {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 0.75rem;
+    color: #a09070;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    margin: 0;
+    padding: 0;
+}
+
+/* Result row inside a napkin block */
+.napkin-result-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px solid rgba(74,66,58,0.5);
+    flex-wrap: wrap;
+}
+
+.napkin-result-label {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.82rem;
+    color: #a09070;
+    flex-shrink: 0;
+}
+
+.napkin-result-value {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.0rem;
+    font-weight: bold;
+    color: #c8a96a;
+    text-shadow: 0 0 6px rgba(200,169,106,0.20);
+}
+
+/* Secondary result (exact formula comparison) — slightly muted */
+.napkin-result-secondary {
+    font-size: 0.88rem;
+    color: #8a7860;
+    text-shadow: none;
+}

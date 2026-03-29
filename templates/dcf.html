@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>DCF Calculator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="container">
+
+<nav>
+    <a href="/tracker">Tracker</a>
+    <a href="/collection">Collection</a>
+    <a href="/industry">Industry Tarot</a>
+    <a href="/dcf" class="active">DCF</a>
+</nav>
+
+<h1>DCF Calculator</h1>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Symbol input                                                         -->
+<!-- ------------------------------------------------------------------ -->
+<div class="dcf-symbol-row">
+    <label for="dcf-symbol-input" class="dcf-symbol-label">Symbol:</label>
+    <input type="text"
+           id="dcf-symbol-input"
+           class="dcf-symbol-input"
+           placeholder="e.g. AAPL"
+           autocomplete="off"
+           spellcheck="false">
+    <button id="dcf-load-btn">Load</button>
+    <span id="dcf-symbol-status"></span>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- DCF Inputs                                                           -->
+<!-- ------------------------------------------------------------------ -->
+<div class="dcf-section" id="dcf-inputs-section" style="display:none;">
+    <h2>Inputs</h2>
+    <div class="dcf-inputs-grid">
+
+        <div class="dcf-input-block">
+            <label class="dcf-input-label" for="inp-year1">Year 1 Owner Earnings ($)</label>
+            <input type="number" id="inp-year1" class="dcf-input" placeholder="e.g. 100">
+            <span class="dcf-input-hint">Starting annual earnings figure</span>
+        </div>
+
+        <div class="dcf-input-block">
+            <label class="dcf-input-label" for="inp-growth">Growth Rate (%)</label>
+            <input type="number" id="inp-growth" class="dcf-input" placeholder="e.g. 12" step="0.1">
+            <span class="dcf-input-hint">Annual earnings growth rate</span>
+        </div>
+
+        <div class="dcf-input-block">
+            <label class="dcf-input-label" for="inp-discount">Discount Rate (%)</label>
+            <input type="number" id="inp-discount" class="dcf-input" placeholder="e.g. 9" step="0.1">
+            <span class="dcf-input-hint">Your required rate of return</span>
+        </div>
+
+        <div class="dcf-input-block">
+            <label class="dcf-input-label" for="inp-shares">Shares Outstanding</label>
+            <input type="number" id="inp-shares" class="dcf-input" placeholder="e.g. 50">
+            <span class="dcf-input-hint">In millions (e.g. 50 = 50M shares)</span>
+        </div>
+
+    </div>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- DCF Results                                                          -->
+<!-- ------------------------------------------------------------------ -->
+<div class="dcf-section" id="dcf-results-section" style="display:none;">
+    <h2>Discounted Cash Flow — Years 1–10</h2>
+    <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:12px;">
+        Each year's earnings are grown by the growth rate, then discounted
+        back to present value using the discount rate.
+    </p>
+
+    <table class="dcf-table" id="dcf-table">
+        <thead>
+            <tr>
+                <th>Year</th>
+                <th>Owner Earnings</th>
+                <th>Discount Factor</th>
+                <th>Discounted Value</th>
+            </tr>
+        </thead>
+        <tbody id="dcf-table-body"></tbody>
+        <tfoot id="dcf-table-foot"></tfoot>
+    </table>
+
+    <!-- Summary panel (hidden — results shown in tfoot) -->
+    <div class="dcf-summary-panel" id="dcf-summary" style="display:none;">
+        <div class="dcf-summary-row">
+            <span class="dcf-summary-label">Sum of Discounted Values (NPV):</span>
+            <span class="dcf-summary-value" id="dcf-npv">—</span>
+        </div>
+        <div class="dcf-summary-row" id="dcf-share-price-row" style="display:none;">
+            <span class="dcf-summary-label">NPV ÷ Shares Outstanding:</span>
+            <span class="dcf-summary-value dcf-summary-highlight" id="dcf-share-price">—</span>
+        </div>
+    </div>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Napkin Math Section                                                  -->
+<!-- ------------------------------------------------------------------ -->
+<div class="dcf-section" id="napkin-section" style="display:none;">
+    <h2>Napkin Math</h2>
+    <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:16px;">
+        A quick back-of-napkin estimate using the Rule of 72.
+        Discount rate is locked at <strong style="color:#c8a96a;">4%</strong> for this section.
+    </p>
+
+    <!-- Block 1: Rule of 72 -->
+    <div class="napkin-block" id="napkin-rule72">
+        <h3 class="napkin-block-title">① Rule of 72 — Year 10 Earnings Estimate</h3>
+        <div class="napkin-lines" id="napkin-rule72-lines"></div>
+        <div class="napkin-result-row">
+            <span class="napkin-result-label">Year 10 Estimate (Rule of 72):</span>
+            <span class="napkin-result-value" id="napkin-yr10-r72">—</span>
+        </div>
+        <div class="napkin-result-row" style="margin-top:6px;">
+            <span class="napkin-result-label">Year 10 Exact (compound formula):</span>
+            <span class="napkin-result-value napkin-result-secondary" id="napkin-yr10-exact">—</span>
+        </div>
+    </div>
+
+    <!-- Block 2: Average earnings -->
+    <div class="napkin-block" id="napkin-avg">
+        <h3 class="napkin-block-title">② Average Earnings Over 10 Years</h3>
+        <div class="napkin-lines" id="napkin-avg-lines"></div>
+        <div class="napkin-result-row">
+            <span class="napkin-result-label">10-Year Total Earnings Estimate:</span>
+            <span class="napkin-result-value" id="napkin-10yr-total">—</span>
+        </div>
+    </div>
+
+    <!-- Block 3: Discount the 10-year total -->
+    <div class="napkin-block" id="napkin-discount">
+        <h3 class="napkin-block-title">③ Discount 10-Year Total to Present Value</h3>
+        <div class="napkin-lines" id="napkin-discount-lines"></div>
+        <div class="napkin-result-row">
+            <span class="napkin-result-label">Discounted (× 0.67 shortcut):</span>
+            <span class="napkin-result-value" id="napkin-disc-shortcut">—</span>
+        </div>
+        <div class="napkin-result-row" style="margin-top:6px;">
+            <span class="napkin-result-label">Discounted (exact 4% NPV sum):</span>
+            <span class="napkin-result-value napkin-result-secondary" id="napkin-disc-exact">—</span>
+        </div>
+    </div>
+
+    <!-- Block 4: Terminal value -->
+    <div class="napkin-block" id="napkin-terminal">
+        <h3 class="napkin-block-title">④ Terminal Value</h3>
+        <div class="napkin-lines" id="napkin-terminal-lines"></div>
+        <div class="napkin-result-row">
+            <span class="napkin-result-label">Discounted Terminal Value (× 0.67):</span>
+            <span class="napkin-result-value" id="napkin-tv-disc">—</span>
+        </div>
+        <div class="napkin-result-row" style="margin-top:6px;">
+            <span class="napkin-result-label">Discounted Terminal Value (exact 4% NPV):</span>
+            <span class="napkin-result-value napkin-result-secondary" id="napkin-tv-disc-exact">—</span>
+        </div>
+    </div>
+
+    <!-- Block 5: Final sum -->
+    <div class="napkin-block" id="napkin-final">
+        <h3 class="napkin-block-title">⑤ Intrinsic Value Estimate</h3>
+        <div class="napkin-lines" id="napkin-final-lines"></div>
+        <div class="napkin-result-row">
+            <span class="napkin-result-label">Total Intrinsic Value (shortcut):</span>
+            <span class="napkin-result-value" id="napkin-total">—</span>
+        </div>
+        <div class="napkin-result-row" style="margin-top:6px; display:none;" id="napkin-per-share-row">
+            <span class="napkin-result-label">Per Share (shortcut ÷ shares):</span>
+            <span class="napkin-result-value dcf-summary-highlight" id="napkin-per-share">—</span>
+        </div>
+    </div>
+
+</div><!-- /#napkin-section -->
+
+<!-- ------------------------------------------------------------------ -->
+<!-- JavaScript                                                           -->
+<!-- ------------------------------------------------------------------ -->
+<script>
+const NAPKIN_DISCOUNT_RATE = 0.04;
+
+const symbolInput    = document.getElementById("dcf-symbol-input");
+const loadBtn        = document.getElementById("dcf-load-btn");
+const symbolStatus   = document.getElementById("dcf-symbol-status");
+const inputsSection  = document.getElementById("dcf-inputs-section");
+const resultsSection = document.getElementById("dcf-results-section");
+const napkinSection  = document.getElementById("napkin-section");
+const inpYear1       = document.getElementById("inp-year1");
+const inpGrowth      = document.getElementById("inp-growth");
+const inpDiscount    = document.getElementById("inp-discount");
+const inpShares      = document.getElementById("inp-shares");
+const dcfTableBody   = document.getElementById("dcf-table-body");
+const dcfTableFoot   = document.getElementById("dcf-table-foot");
+const dcfSummary     = document.getElementById("dcf-summary");
+
+let activeSymbol  = null;
+let saveDebouncer = null;
+
+// ===========================================================================
+// Formatting helpers
+// ===========================================================================
+function fmt(n, decimals = 2) {
+    if (n == null || isNaN(n)) return "—";
+    return n.toLocaleString("en-US", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    });
+}
+function fmtDollar(n, decimals = 2) {
+    if (n == null || isNaN(n)) return "—";
+    return "$" + fmt(n, decimals);
+}
+function fmtPct(n, decimals = 4) {
+    if (n == null || isNaN(n)) return "—";
+    return fmt(n, decimals);
+}
+
+// ===========================================================================
+// Symbol load / save
+// ===========================================================================
+function setStatus(msg, color) {
+    symbolStatus.textContent = msg;
+    symbolStatus.style.color = color || "#a09070";
+}
+
+async function loadSymbol(symbol) {
+    setStatus("Loading…", "#a09070");
+    try {
+        const res  = await fetch(`/api/dcf/${encodeURIComponent(symbol)}`);
+        const data = await res.json();
+        const d    = data.data || {};
+        inpYear1.value    = d.year1_earnings    ?? "";
+        inpGrowth.value   = d.growth_rate        ?? "";
+        inpDiscount.value = d.discount_rate      ?? "";
+        inpShares.value   = d.shares_outstanding ?? "";
+        setStatus(`Loaded: ${symbol}`, "#70d888");
+        inputsSection.style.display = "block";
+        recalculate();
+    } catch (e) {
+        setStatus("Error loading data", "#e06868");
+    }
+}
+
+function scheduleSave() {
+    if (!activeSymbol) return;
+    clearTimeout(saveDebouncer);
+    saveDebouncer = setTimeout(() => saveInputs(), 600);
+}
+
+async function saveInputs() {
+    if (!activeSymbol) return;
+    const payload = {};
+    if (inpYear1.value    !== "") payload.year1_earnings    = parseFloat(inpYear1.value);
+    if (inpGrowth.value   !== "") payload.growth_rate        = parseFloat(inpGrowth.value);
+    if (inpDiscount.value !== "") payload.discount_rate      = parseFloat(inpDiscount.value);
+    if (inpShares.value   !== "") payload.shares_outstanding = parseFloat(inpShares.value);
+    if (Object.keys(payload).length === 0) return;
+    try {
+        await fetch(`/api/dcf/${encodeURIComponent(activeSymbol)}`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify(payload),
+        });
+    } catch (e) { console.error("DCF save failed:", e); }
+}
+
+loadBtn.addEventListener("click", () => {
+    const sym = symbolInput.value.trim().toUpperCase();
+    if (!sym) { setStatus("Enter a symbol first", "#e06868"); return; }
+    activeSymbol = sym;
+    loadSymbol(sym);
+});
+symbolInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") loadBtn.click();
+});
+[inpYear1, inpGrowth, inpDiscount, inpShares].forEach(inp => {
+    inp.addEventListener("input", () => { recalculate(); scheduleSave(); });
+});
+
+// ===========================================================================
+// Main recalculate
+// ===========================================================================
+function recalculate() {
+    const year1    = parseFloat(inpYear1.value);
+    const growth   = parseFloat(inpGrowth.value);
+    const discount = parseFloat(inpDiscount.value);
+    const shares   = parseFloat(inpShares.value);
+
+    const hasYear1    = !isNaN(year1)    && year1    > 0;
+    const hasGrowth   = !isNaN(growth)   && growth   > 0;
+    const hasDiscount = !isNaN(discount) && discount > 0;
+    const hasShares   = !isNaN(shares)   && shares   > 0;
+
+    const canDCF    = hasYear1 && hasGrowth && hasDiscount;
+    const canNapkin = hasYear1 && hasGrowth;
+
+    resultsSection.style.display = canDCF    ? "block" : "none";
+    napkinSection.style.display  = canNapkin ? "block" : "none";
+
+    if (canDCF)    buildDCFTable(year1, growth / 100, discount / 100, hasShares ? shares : null);
+    if (canNapkin) buildNapkinMath(year1, growth / 100, hasShares ? shares : null);
+}
+
+// ===========================================================================
+// DCF Table builder
+// ===========================================================================
+function buildDCFTable(year1, growthRate, discountRate, shares) {
+    dcfTableBody.innerHTML = "";
+    dcfTableFoot.innerHTML = "";
+
+    let npv = 0;
+    let earnings = year1;
+
+    for (let yr = 1; yr <= 10; yr++) {
+        if (yr > 1) earnings = earnings * (1 + growthRate);
+        const discountFactor  = 1 / Math.pow(1 + discountRate, yr);
+        const discountedValue = earnings * discountFactor;
+        npv += discountedValue;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td class="dcf-year-col">Year ${yr}</td>
+            <td>${fmtDollar(earnings)}</td>
+            <td class="dcf-mono">1 / (1 + ${(discountRate * 100).toFixed(1)}%)^${yr} = ${fmtPct(discountFactor)}</td>
+            <td class="dcf-highlight">${fmtDollar(discountedValue)}</td>`;
+        dcfTableBody.appendChild(tr);
+    }
+
+    const tfNpv = document.createElement("tr");
+    tfNpv.className = "dcf-total-row";
+    tfNpv.innerHTML = `
+        <td colspan="3" style="text-align:right; font-weight:bold;">
+            Sum of Discounted Values (NPV)
+        </td>
+        <td class="dcf-highlight dcf-total-value">${fmtDollar(npv)}</td>`;
+    dcfTableFoot.appendChild(tfNpv);
+
+    if (shares) {
+        const sharePrice = npv / shares;
+        const tfShare = document.createElement("tr");
+        tfShare.className = "dcf-total-row dcf-share-row";
+        tfShare.innerHTML = `
+            <td colspan="3" style="text-align:right; font-weight:bold;">
+                NPV ÷ ${fmt(shares, 0)} shares = Intrinsic Value Per Share
+            </td>
+            <td class="dcf-highlight dcf-total-value dcf-summary-highlight">
+                ${fmtDollar(sharePrice)}
+            </td>`;
+        dcfTableFoot.appendChild(tfShare);
+    }
+
+    dcfSummary.style.display = "none";
+}
+
+// ===========================================================================
+// Napkin Math builder
+// ===========================================================================
+function buildNapkinMath(year1, growthRate, shares) {
+    const rate = growthRate * 100;
+
+    // Block 1
+    const { yr10_r72, yr10_exact, lines: r72Lines } = rule72(year1, rate);
+    setLines("napkin-rule72-lines", r72Lines);
+    document.getElementById("napkin-yr10-r72").textContent   = fmtDollar(yr10_r72);
+    document.getElementById("napkin-yr10-exact").textContent = fmtDollar(yr10_exact);
+
+    // Block 2
+    const avgEarnings = (year1 + yr10_r72) / 2;
+    const total10yr   = avgEarnings * 10;
+    setLines("napkin-avg-lines", [
+        `Year 1 earnings:  ${fmtDollar(year1)}`,
+        `Year 10 earnings: ${fmtDollar(yr10_r72)}  (Rule of 72 estimate)`,
+        `Simple average:   (${fmtDollar(year1)} + ${fmtDollar(yr10_r72)}) ÷ 2 = ${fmtDollar(avgEarnings)}`,
+        `10-year total:    ${fmtDollar(avgEarnings)} × 10 = ${fmtDollar(total10yr)}`,
+    ]);
+    document.getElementById("napkin-10yr-total").textContent = fmtDollar(total10yr);
+
+    // Block 3
+    const disc_shortcut = total10yr * 0.67;
+    let disc_exact = 0;
+    for (let yr = 1; yr <= 10; yr++) {
+        disc_exact += avgEarnings / Math.pow(1 + NAPKIN_DISCOUNT_RATE, yr);
+    }
+    setLines("napkin-discount-lines", [
+        `10-year total earnings: ${fmtDollar(total10yr)}`,
+        ``,
+        `Shortcut (× 0.67):`,
+        `  ${fmtDollar(total10yr)} × 0.67 = ${fmtDollar(disc_shortcut)}`,
+        ``,
+        `Exact (4% NPV of ${fmtDollar(avgEarnings)}/yr for 10 years):`,
+        ...Array.from({length: 10}, (_, i) => {
+            const yr = i + 1;
+            const pv = avgEarnings / Math.pow(1 + NAPKIN_DISCOUNT_RATE, yr);
+            return `  Year ${yr}: ${fmtDollar(avgEarnings)} ÷ (1.04)^${yr} = ${fmtDollar(pv)}`;
+        }),
+        `  Total exact PV: ${fmtDollar(disc_exact)}`,
+        ``,
+        `0.67 shortcut accuracy: ${fmtPct(disc_shortcut / disc_exact, 3)}× of exact value`,
+    ]);
+    document.getElementById("napkin-disc-shortcut").textContent = fmtDollar(disc_shortcut);
+    document.getElementById("napkin-disc-exact").textContent    = fmtDollar(disc_exact);
+
+    // Block 4
+    const tv_raw        = yr10_r72 / NAPKIN_DISCOUNT_RATE;
+    const tv_disc_short = tv_raw * 0.67;
+    const tv_disc_exact = tv_raw / Math.pow(1 + NAPKIN_DISCOUNT_RATE, 10);
+    setLines("napkin-terminal-lines", [
+        `Year 10 earnings (Rule of 72): ${fmtDollar(yr10_r72)}`,
+        `Discount rate (napkin):        4%`,
+        ``,
+        `Terminal value = Year 10 earnings ÷ discount rate`,
+        `  ${fmtDollar(yr10_r72)} ÷ 0.04 = ${fmtDollar(tv_raw)}`,
+        ``,
+        `Discount terminal value back to today:`,
+        `  Shortcut: ${fmtDollar(tv_raw)} × 0.67 = ${fmtDollar(tv_disc_short)}`,
+        `  Exact:    ${fmtDollar(tv_raw)} ÷ (1.04)^10 = ${fmtDollar(tv_disc_exact)}`,
+        ``,
+        `0.67 shortcut accuracy: ${fmtPct(tv_disc_short / tv_disc_exact, 3)}× of exact value`,
+    ]);
+    document.getElementById("napkin-tv-disc").textContent       = fmtDollar(tv_disc_short);
+    document.getElementById("napkin-tv-disc-exact").textContent = fmtDollar(tv_disc_exact);
+
+    // Block 5
+    const total_intrinsic = disc_shortcut + tv_disc_short;
+    const finalLines = [
+        `Discounted 10-year earnings (shortcut): ${fmtDollar(disc_shortcut)}`,
+        `Discounted terminal value   (shortcut): ${fmtDollar(tv_disc_short)}`,
+        ``,
+        `Total intrinsic value = ${fmtDollar(disc_shortcut)} + ${fmtDollar(tv_disc_short)} = ${fmtDollar(total_intrinsic)}`,
+    ];
+    if (shares) {
+        const perShare = total_intrinsic / shares;
+        finalLines.push(``);
+        finalLines.push(`Per share = ${fmtDollar(total_intrinsic)} ÷ ${fmt(shares, 0)} shares = ${fmtDollar(perShare)}`);
+        document.getElementById("napkin-per-share").textContent       = fmtDollar(perShare);
+        document.getElementById("napkin-per-share-row").style.display = "flex";
+    } else {
+        document.getElementById("napkin-per-share-row").style.display = "none";
+    }
+    setLines("napkin-final-lines", finalLines);
+    document.getElementById("napkin-total").textContent = fmtDollar(total_intrinsic);
+}
+
+// ===========================================================================
+// Rule of 72 — closest-to-10 ladder with rounding instead of nudge
+// ===========================================================================
+function rule72(year1, rate) {
+    const lines = [];
+
+    lines.push(`Year 1 earnings: ${fmtDollar(year1)}`);
+    lines.push(`Growth rate:     ${rate}%`);
+    lines.push(``);
+
+    // Step 1: Doubling period
+    const dp = 72 / rate;
+    lines.push(`Step 1 — Doubling period`);
+    lines.push(`  72 ÷ ${rate} = ${fmtPct(dp, 2)} years to double`);
+    lines.push(``);
+
+    // Step 2: Build ladder by halving down and doubling up from dp.
+    // Pick the interval closest to year 10. Ties go to the smaller value.
+    lines.push(`Step 2 — Build interval ladder, find closest to year 10`);
+
+    const candidates = [];
+    let v = dp;
+    while (v >= 0.25) { candidates.push(v); v = v / 2; }
+    v = dp * 2;
+    while (v <= 80)   { candidates.push(v); v = v * 2; }
+
+    const ladder = [...new Set(candidates)].sort((a, b) => a - b);
+    lines.push(`  Ladder: ${ladder.map(x => fmtPct(x, 2) + " yrs").join("  →  ")}`);
+    lines.push(``);
+
+    let best = ladder[0];
+    let bestDist = Math.abs(ladder[0] - 10);
+    for (const c of ladder) {
+        const d = Math.abs(c - 10);
+        if (d < bestDist || (d === bestDist && c < best)) { best = c; bestDist = d; }
+    }
+    lines.push(`  Chosen: ${fmtPct(best, 2)} years  (${fmtPct(bestDist, 2)} yrs from year 10)`);
+    lines.push(``);
+
+    // Step 3: Value at the chosen interval using 2^(interval/dp)
+    const mult    = Math.pow(2, best / dp);
+    const valRaw  = year1 * mult;
+    lines.push(`Step 3 — Value at year ${fmtPct(best, 2)}`);
+    lines.push(`  Multiplier = 2^(${fmtPct(best, 2)} ÷ ${fmtPct(dp, 2)}) = ${fmtPct(mult, 4)}×`);
+    lines.push(`  ${fmtDollar(year1)} × ${fmtPct(mult, 4)} = ${fmtDollar(valRaw)}`);
+    lines.push(``);
+
+    // Step 4: Round to a clean number instead of nudging.
+    //
+    // "Clean" = round to the nearest leading digit at the value's magnitude.
+    //   e.g. 14,720,300 → magnitude 1,000,000 → nearest multiple = 15,000,000
+    //        8,340,000  → magnitude 1,000,000 → nearest multiple = 8,000,000
+    //
+    // Direction:
+    //   Interval ABOVE year 10 → round UP
+    //     (the value already has extra growth baked in beyond year 10,
+    //      rounding up keeps us conservative by not deflating it)
+    //   Interval BELOW year 10 → round DOWN
+    //     (we haven't reached year 10 yet, rounding down keeps us
+    //      conservative by not inflating the shortfall)
+    //   Interval exactly year 10 → round to nearest (no directional bias)
+
+    function roundToMagnitude(n, roundUp) {
+        if (n <= 0) return n;
+        const mag = Math.pow(10, Math.floor(Math.log10(n)));
+        return roundUp
+            ? Math.ceil(n  / mag) * mag
+            : Math.floor(n / mag) * mag;
+    }
+
+    let yr10_r72;
+
+    if (Math.abs(best - 10) < 0.0001) {
+        // Lands exactly on year 10 — round to nearest clean number
+        yr10_r72 = roundToMagnitude(valRaw, true);
+        lines.push(`Step 4 — Interval is exactly year 10`);
+        lines.push(`  Raw value:         ${fmtDollar(valRaw)}`);
+        lines.push(`  Rounded to clean:  ${fmtDollar(yr10_r72)}`);
+
+    } else if (best > 10) {
+        // Interval above year 10 → round UP
+        yr10_r72 = roundToMagnitude(valRaw, true);
+        lines.push(`Step 4 — Interval (${fmtPct(best, 2)} yrs) is above year 10 → round UP`);
+        lines.push(`  Raw value at year ${fmtPct(best, 2)}: ${fmtDollar(valRaw)}`);
+        lines.push(`  Rounded UP to clean number:  ${fmtDollar(yr10_r72)}`);
+        lines.push(`  (interval has extra growth beyond year 10 baked in,`);
+        lines.push(`   rounding up keeps the estimate conservative)`);
+
+    } else {
+        // Interval below year 10 → round DOWN
+        yr10_r72 = roundToMagnitude(valRaw, false);
+        lines.push(`Step 4 — Interval (${fmtPct(best, 2)} yrs) is below year 10 → round DOWN`);
+        lines.push(`  Raw value at year ${fmtPct(best, 2)}: ${fmtDollar(valRaw)}`);
+        lines.push(`  Rounded DOWN to clean number: ${fmtDollar(yr10_r72)}`);
+        lines.push(`  (interval hasn't reached year 10 yet,`);
+        lines.push(`   rounding down keeps the estimate conservative)`);
+    }
+
+    lines.push(``);
+
+    // Step 5: Exact compound result for comparison
+    const yr10_exact = year1 * Math.pow(1 + rate / 100, 10);
+    lines.push(`Step 5 — Exact compound formula (for comparison)`);
+    lines.push(`  ${fmtDollar(year1)} × (1 + ${rate}%)^10 = ${fmtDollar(yr10_exact)}`);
+
+    return { yr10_r72, yr10_exact, lines };
+}
+
+// ===========================================================================
+// Render calculation lines
+// ===========================================================================
+function setLines(containerId, lines) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = "";
+    lines.forEach(line => {
+        const p = document.createElement("p");
+        p.className   = "napkin-line";
+        p.textContent = line === "" ? "\u00A0" : line;
+        el.appendChild(p);
+    });
+}
+
+// ===========================================================================
+// Boot — pre-load symbol from URL ?symbol=X if present
+// ===========================================================================
+(function boot() {
+    const params = new URLSearchParams(window.location.search);
+    const sym    = params.get("symbol");
+    if (sym) {
+        symbolInput.value = sym.toUpperCase();
+        activeSymbol      = sym.toUpperCase();
+        loadSymbol(activeSymbol);
+    }
+})();
+</script>
+
+</div><!-- /.container -->
+</body>
+</html>

@@ -1252,3 +1252,116 @@ tbody td {
     min-height: 14px;
     margin-top: 2px;
 }
+
+/* ================================================================
+   READ-ONLY THUMBNAIL MINI-MODAL (collection page)
+   ================================================================ */
+
+#thumb-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.72);
+    z-index: 1100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+#thumb-modal-overlay.visible {
+    display: flex;
+}
+
+#thumb-modal-content {
+    position: relative;
+    background: linear-gradient(180deg, #2b2620 0%, #3a322b 100%);
+    border: 1px solid #4a423a;
+    box-shadow: 0 0 32px rgba(0,0,0,0.8), 0 0 0 1px rgba(200,169,106,0.12);
+    padding: 28px 32px 32px;
+    width: 100%;
+    max-width: 420px;
+    animation: modal-in 0.18s ease-out;
+}
+
+#thumb-modal-content::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%,
+        rgba(255,255,255,0.10) 40%,
+        rgba(255,255,255,0.14) 60%,
+        transparent 100%);
+}
+
+#thumb-modal-close {
+    position: absolute;
+    top: 10px; right: 12px;
+    background: none;
+    border: 1px solid transparent;
+    color: #6a5c48;
+    font-size: 1.0rem;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    box-shadow: none;
+}
+
+#thumb-modal-close:hover {
+    color: #ffe680;
+    border-color: #4a423a;
+    background: none;
+    box-shadow: none;
+}
+
+/* ── Read-only rating rows ──────────────────────────────────────── */
+.thumb-rating-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(74,66,58,0.4);
+}
+
+.thumb-rating-row:last-child {
+    border-bottom: none;
+}
+
+.thumb-rating-label {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.84rem;
+    color: #ddd0a8;
+    flex: 1;
+}
+
+.thumb-rating-pips {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Individual pip — read-only, looks like a rating-btn but no hover/click */
+.thumb-pip {
+    width: 30px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.82rem;
+    font-weight: bold;
+    background: linear-gradient(180deg, #3a322b 0%, #2b2620 100%);
+    border: 1px solid #4a423a;
+    color: #4a423a;
+    user-select: none;
+    pointer-events: none;
+}
+
+/* Active pip — glows gold, matches .rating-btn.active */
+.thumb-pip-active {
+    background: linear-gradient(180deg, #4a3820 0%, #362c14 100%);
+    border-color: #c8a96a;
+    color: #ffe680;
+    box-shadow: 0 0 6px rgba(255,230,128,0.30);
+}

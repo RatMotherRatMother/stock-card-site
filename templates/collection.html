@@ -116,12 +116,16 @@
         <!-- Tarot thumbnails — appear after selections -->
         <div id="tarot-thumbs-row" style="display:none; margin-top:14px; gap:16px; align-items:flex-end;">
             <div id="industry-thumb-wrap" style="display:none; text-align:center;">
-                <img id="industry-thumb" class="tarot-thumb" src="" alt="">
-                <div style="font-size:0.72rem; color:#6a5c48; margin-top:4px;" id="industry-thumb-label"></div>
+                <img id="industry-thumb" class="tarot-thumb" src="" alt=""
+                     title="Click to view Five Forces ratings">
+                <div style="font-size:0.72rem; color:#6a5c48; margin-top:4px;"
+                     id="industry-thumb-label"></div>
             </div>
             <div id="group-thumb-wrap" style="display:none; text-align:center;">
-                <img id="group-thumb" class="tarot-thumb" src="" alt="">
-                <div style="font-size:0.72rem; color:#6a5c48; margin-top:4px;" id="group-thumb-label"></div>
+                <img id="group-thumb" class="tarot-thumb" src="" alt=""
+                     title="Click to view Competition Strength ratings">
+                <div style="font-size:0.72rem; color:#6a5c48; margin-top:4px;"
+                     id="group-thumb-label"></div>
             </div>
         </div>
     </div>
@@ -132,7 +136,6 @@
         <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:12px;">
             Select the firm's generic competitive strategy.
         </p>
-
         <div class="strategy-radio-group" id="strategy-radio-group">
             <label class="strategy-radio-label">
                 <input type="radio" name="firm_strategy" value="cost_leadership">
@@ -147,7 +150,6 @@
                 <span class="strategy-radio-text">Focus</span>
             </label>
         </div>
-
         <div style="margin-top:12px;">
             <div class="structural-label" style="margin-bottom:6px;">Strategy Notes</div>
             <div class="blur-notes-wrap" id="firm-strategy-notes-wrap">
@@ -163,16 +165,10 @@
     <!-- ── Competitive Analysis Profile ───────────────────────────── -->
     <div class="analysis-section">
         <h3>Competitive Analysis Profile</h3>
-
-        <!-- Four Diagnostic Components -->
         <h4 style="margin-top:14px; margin-bottom:10px;">Four Diagnostic Components</h4>
         <div id="diagnostic-container"></div>
-
-        <!-- Offensive Capabilities -->
         <h4 style="margin-top:18px; margin-bottom:10px;">Offensive Capabilities</h4>
         <div id="offensive-container"></div>
-
-        <!-- Defensive Capabilities -->
         <h4 style="margin-top:18px; margin-bottom:10px;">Defensive Capabilities</h4>
         <div id="defensive-container"></div>
     </div>
@@ -189,12 +185,26 @@
 </div><!-- /#analysis-area -->
 
 <!-- ------------------------------------------------------------------ -->
+<!-- Read-only mini-modal — shown when a tarot thumbnail is clicked       -->
+<!-- ------------------------------------------------------------------ -->
+<div id="thumb-modal-overlay">
+    <div id="thumb-modal-content">
+        <button id="thumb-modal-close" title="Close (Esc)">✕</button>
+        <h3 id="thumb-modal-title">—</h3>
+        <p id="thumb-modal-subtitle" style="color:#6a5c48; font-family:Georgia,serif;
+            font-size:0.78rem; margin-bottom:16px;"></p>
+        <div id="thumb-modal-ratings">
+            <!-- Read-only rating rows injected here by JS -->
+        </div>
+    </div>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
 <!-- JavaScript                                                           -->
 <!-- ------------------------------------------------------------------ -->
 <script>
     const ALL_STAGES = {{ stages | tojson }};
 
-    // Chart.js warm-parchment defaults
     Chart.defaults.color       = "#a09070";
     Chart.defaults.borderColor = "#4a423a";
 
@@ -214,11 +224,18 @@
     const chartsContainer = document.getElementById("charts-container");
     const analysisArea    = document.getElementById("analysis-area");
 
-    let activeSymbol    = null;
-    let activeStage     = null;
-    let chartInstances  = [];
-    let _allIndustries  = [];   // cached from /api/industries
-    let _allGroups      = [];   // cached from /api/strategic_groups
+    // Mini-modal refs
+    const thumbOverlay      = document.getElementById("thumb-modal-overlay");
+    const thumbModalTitle   = document.getElementById("thumb-modal-title");
+    const thumbModalSub     = document.getElementById("thumb-modal-subtitle");
+    const thumbModalRatings = document.getElementById("thumb-modal-ratings");
+    const thumbModalClose   = document.getElementById("thumb-modal-close");
+
+    let activeSymbol   = null;
+    let activeStage    = null;
+    let chartInstances = [];
+    let _allIndustries = [];
+    let _allGroups     = [];
 
     const symbolFilter = document.getElementById("symbol-filter");
     symbolFilter.addEventListener("input", () => {
@@ -234,32 +251,45 @@
         return Math.round(val).toLocaleString("en-US");
     }
 
-    // ── Analysis config ────────────────────────────────────────────────
+    // ── Config ────────────────────────────────────────────────────────
+    const FIVE_FORCES = [
+        { label: "Bargaining power of suppliers", field: "supplier_power" },
+        { label: "Bargaining power of buyers",    field: "buyer_power"    },
+        { label: "Threat of new entrants",        field: "new_entrants"   },
+        { label: "Threat of substitutes",         field: "substitutes"    },
+        { label: "Rivalry among existing firms",  field: "rivalry"        },
+    ];
+    const GROUP_RATINGS = [
+        { label: "Target customer overlap",   field: "customer_overlap" },
+        { label: "Protect differentiation",   field: "differentiation"  },
+        { label: "Number of groups and size", field: "number_and_size"  },
+        { label: "Strategy overlap",          field: "strategy_overlap" },
+    ];
     const DIAGNOSTIC_ITEMS = [
-        { label: "Future Goals",      field: "future_goals"     },
-        { label: "Current Strategy",  field: "current_strategy" },
-        { label: "Assumptions",       field: "assumptions"      },
-        { label: "Capabilities",      field: "capabilities"     },
+        { label: "Future Goals",     field: "future_goals"     },
+        { label: "Current Strategy", field: "current_strategy" },
+        { label: "Assumptions",      field: "assumptions"      },
+        { label: "Capabilities",     field: "capabilities"     },
     ];
     const OFFENSIVE_ITEMS = [
-        { label: "Satisfaction with Current Position", field: "satisfaction"    },
-        { label: "Probable Moves",                     field: "probable_moves"  },
-        { label: "Strength and Seriousness of Moves",  field: "strength_moves"  },
+        { label: "Satisfaction with Current Position", field: "satisfaction"   },
+        { label: "Probable Moves",                     field: "probable_moves" },
+        { label: "Strength and Seriousness of Moves",  field: "strength_moves" },
     ];
     const DEFENSIVE_ITEMS = [
-        { label: "Vulnerability",              field: "vulnerability" },
-        { label: "Provocation",                field: "provocation"   },
-        { label: "Effectiveness of Retaliation", field: "retaliation" },
+        { label: "Vulnerability",                field: "vulnerability" },
+        { label: "Provocation",                  field: "provocation"   },
+        { label: "Effectiveness of Retaliation", field: "retaliation"   },
     ];
     const PROFITABILITY_FACTORS = [
-        { label: "Height of Mobility Barriers",          field: "mobility_barriers"        },
-        { label: "Bargaining Power (Customers/Suppliers)", field: "bargaining_power"        },
-        { label: "Vulnerability to Substitute Products", field: "substitute_vulnerability" },
-        { label: "Exposure to Rivalry with Other Groups", field: "rivalry_exposure"        },
-        { label: "Competition in the Group",             field: "group_competition"        },
-        { label: "Scale Compared to Others in Group",   field: "scale"                    },
-        { label: "Cost of Entry into the Group",        field: "entry_cost"               },
-        { label: "Ability to Execute Strategy",         field: "strategy_execution"       },
+        { label: "Height of Mobility Barriers",           field: "mobility_barriers"        },
+        { label: "Bargaining Power (Customers/Suppliers)", field: "bargaining_power"         },
+        { label: "Vulnerability to Substitute Products",  field: "substitute_vulnerability" },
+        { label: "Exposure to Rivalry with Other Groups", field: "rivalry_exposure"         },
+        { label: "Competition in the Group",              field: "group_competition"        },
+        { label: "Scale Compared to Others in Group",     field: "scale"                    },
+        { label: "Cost of Entry into the Group",          field: "entry_cost"               },
+        { label: "Ability to Execute Strategy",           field: "strategy_execution"       },
     ];
 
     // ------------------------------------------------------------------
@@ -270,10 +300,7 @@
         activeSymbol = null;
         symbolFilter.value = "";
         resetContent();
-        if (!activeStage) {
-            CollectionCards.clear();
-            return;
-        }
+        if (!activeStage) { CollectionCards.clear(); return; }
         loadSymbols(activeStage);
     });
 
@@ -299,7 +326,7 @@
     }
 
     // ------------------------------------------------------------------
-    // Symbol list — renders card carousel via collection-cards.js
+    // Symbol list
     // ------------------------------------------------------------------
     function loadSymbols(stage) {
         const symbolList = document.getElementById("symbol-list");
@@ -322,12 +349,10 @@
     function onSymbolClick(symbol, cardEl) {
         CollectionCards.setActive(symbol);
         activeSymbol = symbol;
-
         moveBarSymbol.textContent = symbol;
         moveFeedback.textContent  = "";
         renderMoveButtons(activeStage);
         moveBar.classList.add("visible");
-
         contentArea.classList.remove("visible");
         loadingMsg.style.display  = "block";
         leftBody.innerHTML        = "";
@@ -359,7 +384,7 @@
     }
 
     // ------------------------------------------------------------------
-    // Line charts
+    // Charts
     // ------------------------------------------------------------------
     function renderCharts(chartDefs, years) {
         destroyCharts();
@@ -385,52 +410,28 @@
             chartsContainer.appendChild(card);
             const instance = new Chart(canvas, {
                 type: "line",
-                data: {
-                    labels,
-                    datasets: [{
-                        data:                kValues,
-                        borderColor:         LINE_COLOR,
-                        backgroundColor:     LINE_FILL_COLOR,
-                        borderWidth:         2,
-                        pointRadius:         4,
-                        pointHoverRadius:    6,
-                        pointBackgroundColor: LINE_COLOR,
-                        fill:                true,
-                        tension:             0.3,
-                    }]
-                },
+                data: { labels, datasets: [{
+                    data: kValues, borderColor: LINE_COLOR,
+                    backgroundColor: LINE_FILL_COLOR, borderWidth: 2,
+                    pointRadius: 4, pointHoverRadius: 6,
+                    pointBackgroundColor: LINE_COLOR, fill: true, tension: 0.3,
+                }]},
                 options: {
-                    responsive:          true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: "#2b2620",
-                            borderColor:     "#c8a96a",
-                            borderWidth:     1,
-                            titleColor:      "#f8f0d0",
-                            bodyColor:       "#e0d8c8",
-                            callbacks: {
-                                label: ctx => {
-                                    const v = ctx.parsed.y;
-                                    return v != null ? `$${fmtK(v)}K` : "N/A";
-                                }
-                            }
+                            backgroundColor: "#2b2620", borderColor: "#c8a96a",
+                            borderWidth: 1, titleColor: "#f8f0d0", bodyColor: "#e0d8c8",
+                            callbacks: { label: ctx => {
+                                const v = ctx.parsed.y;
+                                return v != null ? `$${fmtK(v)}K` : "N/A";
+                            }}
                         }
                     },
                     scales: {
-                        x: {
-                            ticks: { font: { size: 10, family: "Verdana, Tahoma, sans-serif" }, maxRotation: 0 },
-                            grid:  { display: false },
-                        },
-                        y: {
-                            ticks: {
-                                font: { size: 9, family: "Verdana, Tahoma, sans-serif" },
-                                maxTicksLimit: 5,
-                                callback: v => "$" + Math.round(v).toLocaleString("en-US") + "K",
-                            },
-                            grid: { color: "rgba(255,255,255,0.04)" },
-                        }
+                        x: { ticks: { font: { size: 10, family: "Verdana, Tahoma, sans-serif" }, maxRotation: 0 }, grid: { display: false } },
+                        y: { ticks: { font: { size: 9, family: "Verdana, Tahoma, sans-serif" }, maxTicksLimit: 5, callback: v => "$" + Math.round(v).toLocaleString("en-US") + "K" }, grid: { color: "rgba(255,255,255,0.04)" } }
                     }
                 }
             });
@@ -439,20 +440,16 @@
     }
 
     // ------------------------------------------------------------------
-    // Left metrics table + CAGR
+    // Metrics table + CAGR
     // ------------------------------------------------------------------
     function populateRatioTable(thead, tbody, leftTable) {
-        thead.innerHTML        = "";
-        tbody.innerHTML        = "";
-        cagrWrap.style.display = "none";
-        cagrBody.innerHTML     = "";
-
+        thead.innerHTML = ""; tbody.innerHTML = "";
+        cagrWrap.style.display = "none"; cagrBody.innerHTML = "";
         if (!leftTable || !leftTable.years || leftTable.years.length === 0) {
             const msg = (leftTable && leftTable.error) ? leftTable.error : "No data available.";
             tbody.innerHTML = `<tr><td colspan="2">${msg}</td></tr>`;
             return;
         }
-
         const headerRow = document.createElement("tr");
         const labelTh   = document.createElement("th");
         labelTh.textContent = "Metric";
@@ -463,10 +460,9 @@
             headerRow.appendChild(th);
         });
         thead.appendChild(headerRow);
-
         const yoyLabels = ["Net Income YoY %", "Pre-Tax Income YoY %"];
         leftTable.ratios.forEach(metric => {
-            const tr      = document.createElement("tr");
+            const tr = document.createElement("tr");
             const labelTd = document.createElement("td");
             labelTd.textContent = metric.label;
             tr.appendChild(labelTd);
@@ -474,14 +470,11 @@
             metric.values.forEach(val => {
                 const td = document.createElement("td");
                 td.textContent = val;
-                if (isYoY && val !== "N/A") {
-                    td.classList.add(val.startsWith("+") ? "yoy-pos" : "yoy-neg");
-                }
+                if (isYoY && val !== "N/A") td.classList.add(val.startsWith("+") ? "yoy-pos" : "yoy-neg");
                 tr.appendChild(td);
             });
             tbody.appendChild(tr);
         });
-
         if (leftTable.cagr && leftTable.cagr.length > 0) {
             leftTable.cagr.forEach(item => {
                 const tr = document.createElement("tr");
@@ -508,7 +501,7 @@
     }
 
     // ------------------------------------------------------------------
-    // Notes (existing stock notes — unchanged)
+    // Notes
     // ------------------------------------------------------------------
     const notesWrap    = document.getElementById("notes-wrap");
     const notesList    = document.getElementById("notes-list");
@@ -521,36 +514,20 @@
         if (!symbol) return;
         fetch(`/api/notes?symbol=${encodeURIComponent(symbol)}`)
             .then(r => r.json())
-            .then(data => {
-                renderNotes(symbol, data.notes || []);
-                notesWrap.style.display = "block";
-            })
+            .then(data => { renderNotes(symbol, data.notes || []); notesWrap.style.display = "block"; })
             .catch(() => { notesWrap.style.display = "block"; });
     }
 
     function renderNotes(symbol, notes) {
         notesList.innerHTML = "";
-        if (notes.length === 0) {
-            notesList.innerHTML = '<li class="notes-empty">No notes yet.</li>';
-            return;
-        }
+        if (notes.length === 0) { notesList.innerHTML = '<li class="notes-empty">No notes yet.</li>'; return; }
         notes.forEach((n, i) => {
-            const li  = document.createElement("li");
-            li.className = "notes-item";
-            const txt = document.createElement("span");
-            txt.className   = "notes-text";
-            txt.textContent = n.text;
-            const meta = document.createElement("span");
-            meta.className   = "notes-meta";
-            meta.textContent = n.timestamp;
-            const del = document.createElement("button");
-            del.className   = "notes-del-btn";
-            del.textContent = "×";
-            del.title       = "Delete note";
+            const li  = document.createElement("li"); li.className = "notes-item";
+            const txt = document.createElement("span"); txt.className = "notes-text"; txt.textContent = n.text;
+            const meta = document.createElement("span"); meta.className = "notes-meta"; meta.textContent = n.timestamp;
+            const del  = document.createElement("button"); del.className = "notes-del-btn"; del.textContent = "×"; del.title = "Delete note";
             del.addEventListener("click", () => deleteNote(symbol, i));
-            li.appendChild(del);
-            li.appendChild(txt);
-            li.appendChild(meta);
+            li.appendChild(del); li.appendChild(txt); li.appendChild(meta);
             notesList.appendChild(li);
         });
     }
@@ -559,25 +536,16 @@
         const text = notesInput.value.trim();
         if (!text || !activeSymbol) return;
         notesPostBtn.disabled = true;
-        fetch("/api/notes", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ symbol: activeSymbol, text }),
-        })
+        fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol: activeSymbol, text }) })
             .then(r => r.json())
-            .then(data => {
-                notesInput.value      = "";
-                notesPostBtn.disabled = false;
-                renderNotes(activeSymbol, data.notes || []);
-            })
+            .then(data => { notesInput.value = ""; notesPostBtn.disabled = false; renderNotes(activeSymbol, data.notes || []); })
             .catch(() => { notesPostBtn.disabled = false; });
     });
 
     function deleteNote(symbol, index) {
         fetch(`/api/notes/${encodeURIComponent(symbol)}/${index}`, { method: "DELETE" })
-            .then(r => r.json())
-            .then(data => renderNotes(symbol, data.notes || []))
-            .catch(() => {});
+            .then(r => r.json()).then(data => renderNotes(symbol, data.notes || [])).catch(() => {});
     }
 
     notesInput.addEventListener("keydown", e => {
@@ -587,53 +555,110 @@
     function moveSymbol(symbol, targetStage) {
         if (!symbol) return;
         moveButtons.querySelectorAll(".move-btn").forEach(b => b.disabled = true);
-        moveFeedback.textContent = "Moving…";
-        moveFeedback.style.color = "#a09070";
-
-        fetch("/api/move_symbol", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ symbol, new_stage: targetStage }),
-        })
+        moveFeedback.textContent = "Moving…"; moveFeedback.style.color = "#a09070";
+        fetch("/api/move_symbol", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol, new_stage: targetStage }) })
             .then(r => r.json())
             .then(data => {
                 if (!data.ok) {
-                    moveFeedback.textContent = `Error: ${data.error}`;
-                    moveFeedback.style.color = "#e06868";
-                    moveButtons.querySelectorAll(".move-btn").forEach(b => b.disabled = false);
-                    return;
+                    moveFeedback.textContent = `Error: ${data.error}`; moveFeedback.style.color = "#e06868";
+                    moveButtons.querySelectorAll(".move-btn").forEach(b => b.disabled = false); return;
                 }
-                moveFeedback.textContent = `✓ ${symbol} moved to stage ${targetStage}`;
-                moveFeedback.style.color = "#70d888";
-                contentArea.classList.remove("visible");
-                moveBar.classList.remove("visible");
-                analysisArea.style.display = "none";
-                activeSymbol = null;
-                loadSymbols(activeStage);
+                moveFeedback.textContent = `✓ ${symbol} moved to stage ${targetStage}`; moveFeedback.style.color = "#70d888";
+                contentArea.classList.remove("visible"); moveBar.classList.remove("visible");
+                analysisArea.style.display = "none"; activeSymbol = null; loadSymbols(activeStage);
             })
             .catch(err => {
-                moveFeedback.textContent = `Fetch error: ${err}`;
-                moveFeedback.style.color = "#e06868";
+                moveFeedback.textContent = `Fetch error: ${err}`; moveFeedback.style.color = "#e06868";
                 moveButtons.querySelectorAll(".move-btn").forEach(b => b.disabled = false);
             });
     }
 
     // ==================================================================
+    // READ-ONLY MINI-MODAL
+    // ==================================================================
+
+    function buildReadOnlyRatingRow(label, value) {
+        const row = document.createElement("div");
+        row.className = "thumb-rating-row";
+
+        const lbl = document.createElement("div");
+        lbl.className   = "thumb-rating-label";
+        lbl.textContent = label;
+
+        const pips = document.createElement("div");
+        pips.className = "thumb-rating-pips";
+
+        if (value) {
+            for (let i = 1; i <= 5; i++) {
+                const pip = document.createElement("span");
+                pip.className   = "thumb-pip" + (i <= value ? " thumb-pip-active" : "");
+                pip.textContent = i;
+                pips.appendChild(pip);
+            }
+        } else {
+            const unrated = document.createElement("span");
+            unrated.style.cssText = "font-size:0.75rem; color:#4a423a; font-style:italic;";
+            unrated.textContent   = "Unrated";
+            pips.appendChild(unrated);
+        }
+
+        row.appendChild(lbl);
+        row.appendChild(pips);
+        return row;
+    }
+
+    function openThumbModal(title, subtitle, ratingDefs, dataRow) {
+        thumbModalTitle.textContent = title;
+        thumbModalSub.textContent   = subtitle;
+        thumbModalRatings.innerHTML = "";
+        ratingDefs.forEach(def => {
+            const value = dataRow ? (dataRow[def.field] ?? null) : null;
+            thumbModalRatings.appendChild(buildReadOnlyRatingRow(def.label, value));
+        });
+        thumbOverlay.classList.add("visible");
+        document.body.style.overflow = "hidden";
+    }
+
+    function closeThumbModal() {
+        thumbOverlay.classList.remove("visible");
+        document.body.style.overflow = "";
+    }
+
+    thumbModalClose.addEventListener("click", closeThumbModal);
+    thumbOverlay.addEventListener("click", e => { if (e.target === thumbOverlay) closeThumbModal(); });
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape" && thumbOverlay.classList.contains("visible")) closeThumbModal();
+    });
+
+    // ==================================================================
     // ANALYSIS AREA
     // ==================================================================
 
-    // ── Industry dropdown ─────────────────────────────────────────────
-    const industrySelect   = document.getElementById("industry-select");
-    const groupSelect      = document.getElementById("group-select");
-    const tarotThumbsRow   = document.getElementById("tarot-thumbs-row");
+    const industrySelect    = document.getElementById("industry-select");
+    const groupSelect       = document.getElementById("group-select");
+    const tarotThumbsRow    = document.getElementById("tarot-thumbs-row");
     const industryThumbWrap = document.getElementById("industry-thumb-wrap");
-    const industryThumb    = document.getElementById("industry-thumb");
-    const industryThumbLbl = document.getElementById("industry-thumb-label");
-    const groupThumbWrap   = document.getElementById("group-thumb-wrap");
-    const groupThumb       = document.getElementById("group-thumb");
-    const groupThumbLbl    = document.getElementById("group-thumb-label");
+    const industryThumb     = document.getElementById("industry-thumb");
+    const industryThumbLbl  = document.getElementById("industry-thumb-label");
+    const groupThumbWrap    = document.getElementById("group-thumb-wrap");
+    const groupThumb        = document.getElementById("group-thumb");
+    const groupThumbLbl     = document.getElementById("group-thumb-label");
 
-    // Load industries into the dropdown once on page load
+    // Wire thumbnail clicks to the read-only modal
+    industryThumb.addEventListener("click", () => {
+        const indRow = _allIndustries.find(i => i.industry === industrySelect.value);
+        if (!indRow) return;
+        openThumbModal(indRow.industry, "Five Forces of Profitability", FIVE_FORCES, indRow);
+    });
+
+    groupThumb.addEventListener("click", () => {
+        const grpRow = _allGroups.find(g => g.group === groupSelect.value);
+        if (!grpRow) return;
+        openThumbModal(grpRow.group, "Levels of Competition Strength", GROUP_RATINGS, grpRow);
+    });
+
+    // Load industries into dropdown once on page load
     async function loadIndustryDropdown() {
         try {
             const res  = await fetch("/api/industries");
@@ -641,58 +666,41 @@
             _allIndustries = data.industries || [];
             _allIndustries.forEach(ind => {
                 const opt = document.createElement("option");
-                opt.value       = ind.industry;
-                opt.textContent = ind.industry;
+                opt.value = ind.industry; opt.textContent = ind.industry;
                 industrySelect.appendChild(opt);
             });
-        } catch (e) {
-            console.error("Could not load industries:", e);
-        }
+        } catch (e) { console.error("Could not load industries:", e); }
     }
     loadIndustryDropdown();
 
-    // Load all groups once so we can filter client-side
     async function loadAllGroups() {
         try {
             const res  = await fetch("/api/strategic_groups");
             const data = await res.json();
             _allGroups = data.groups || [];
-        } catch (e) {
-            console.error("Could not load strategic groups:", e);
-        }
+        } catch (e) { console.error("Could not load strategic groups:", e); }
     }
     loadAllGroups();
 
-    // When industry changes — filter groups, save assignment, update thumb
     industrySelect.addEventListener("change", () => {
         const industry = industrySelect.value;
-
-        // Reset group dropdown
         groupSelect.innerHTML = '<option value="">— Select a group —</option>';
         groupSelect.disabled  = !industry;
         groupThumbWrap.style.display = "none";
-
         if (industry) {
-            // Filter groups for this industry
-            const filtered = _allGroups.filter(g => g.parent_industry === industry);
-            filtered.forEach(g => {
+            _allGroups.filter(g => g.parent_industry === industry).forEach(g => {
                 const opt = document.createElement("option");
-                opt.value       = g.group;
-                opt.textContent = g.group;
+                opt.value = g.group; opt.textContent = g.group;
                 groupSelect.appendChild(opt);
             });
-
-            // Show industry thumbnail
             const indRow = _allIndustries.find(i => i.industry === industry);
             if (indRow && indRow.image_url) {
-                industryThumb.src          = cloudinaryThumb(indRow.image_url);
-                industryThumb.alt          = industry;
-                industryThumbLbl.textContent = industry;
+                industryThumb.src = cloudinaryThumb(indRow.image_url);
+                industryThumb.alt = industry;
+                industryThumbLbl.textContent    = industry;
                 industryThumbWrap.style.display = "block";
                 tarotThumbsRow.style.display    = "flex";
             }
-
-            // Save assignment
             saveStockAnalysis({ assigned_industry: industry, assigned_strategic_group: "" });
         } else {
             industryThumbWrap.style.display = "none";
@@ -701,15 +709,14 @@
         }
     });
 
-    // When group changes — save assignment, update thumb
     groupSelect.addEventListener("change", () => {
         const group = groupSelect.value;
         if (group) {
             const grpRow = _allGroups.find(g => g.group === group);
             if (grpRow && grpRow.image_url) {
-                groupThumb.src          = cloudinaryThumb(grpRow.image_url);
-                groupThumb.alt          = group;
-                groupThumbLbl.textContent = group;
+                groupThumb.src = cloudinaryThumb(grpRow.image_url);
+                groupThumb.alt = group;
+                groupThumbLbl.textContent    = group;
                 groupThumbWrap.style.display = "block";
                 tarotThumbsRow.style.display = "flex";
             }
@@ -719,13 +726,10 @@
         saveStockAnalysis({ assigned_strategic_group: group });
     });
 
-    // Generate a thumbnail URL from a full Cloudinary URL
     function cloudinaryThumb(url) {
-        // Inject w_90,h_120,c_fill transformation before the version or filename
         return url.replace("/upload/", "/upload/w_90,h_120,c_fill/");
     }
 
-    // ── Firm strategy radio buttons ───────────────────────────────────
     document.querySelectorAll('input[name="firm_strategy"]').forEach(radio => {
         radio.addEventListener("change", () => {
             updateStrategyGlow();
@@ -735,177 +739,98 @@
 
     function updateStrategyGlow() {
         document.querySelectorAll(".strategy-radio-label").forEach(lbl => {
-            const radio = lbl.querySelector("input");
-            lbl.classList.toggle("strategy-radio-active", radio.checked);
+            lbl.classList.toggle("strategy-radio-active", lbl.querySelector("input").checked);
         });
     }
 
-    // ── Firm strategy notes (blur save) ──────────────────────────────
     const firmStrategyNotes    = document.getElementById("firm-strategy-notes");
     const firmStrategyFeedback = document.getElementById("firm-strategy-notes-feedback");
-
     firmStrategyNotes.addEventListener("blur", () => {
         saveStockAnalysis({ firm_strategy_notes: firmStrategyNotes.value });
         showBlurFeedback(firmStrategyFeedback);
     });
 
-    // ── Build competitive profile note boxes ──────────────────────────
     function buildBlurNoteSection(container, items, keyPrefix) {
         container.innerHTML = "";
         items.forEach(item => {
-            const block = document.createElement("div");
-            block.className = "structural-block";
-
-            const lbl = document.createElement("div");
-            lbl.className   = "structural-label";
-            lbl.textContent = item.label;
-
-            const wrap = document.createElement("div");
-            wrap.className = "blur-notes-wrap";
-
-            const ta = document.createElement("textarea");
-            ta.className   = "analysis-notes-box blur-notes-box";
-            ta.rows        = 3;
-            ta.placeholder = `Notes on ${item.label.toLowerCase()}…`;
-            ta.dataset.field = item.field;
-
-            const feedback = document.createElement("span");
-            feedback.className = "blur-save-feedback";
-
-            ta.addEventListener("blur", () => {
-                saveStockAnalysis({ [keyPrefix + item.field]: ta.value });
-                showBlurFeedback(feedback);
-            });
-
-            wrap.appendChild(ta);
-            wrap.appendChild(feedback);
-            block.appendChild(lbl);
-            block.appendChild(wrap);
+            const block = document.createElement("div"); block.className = "structural-block";
+            const lbl   = document.createElement("div"); lbl.className = "structural-label"; lbl.textContent = item.label;
+            const wrap  = document.createElement("div"); wrap.className = "blur-notes-wrap";
+            const ta    = document.createElement("textarea");
+            ta.className = "analysis-notes-box blur-notes-box"; ta.rows = 3;
+            ta.placeholder = `Notes on ${item.label.toLowerCase()}…`; ta.dataset.field = item.field;
+            const feedback = document.createElement("span"); feedback.className = "blur-save-feedback";
+            ta.addEventListener("blur", () => { saveStockAnalysis({ [keyPrefix + item.field]: ta.value }); showBlurFeedback(feedback); });
+            wrap.appendChild(ta); wrap.appendChild(feedback);
+            block.appendChild(lbl); block.appendChild(wrap);
             container.appendChild(block);
         });
     }
 
-    // Build all competitive profile sections
-    buildBlurNoteSection(
-        document.getElementById("diagnostic-container"),
-        DIAGNOSTIC_ITEMS, "competitive_"
-    );
-    buildBlurNoteSection(
-        document.getElementById("offensive-container"),
-        OFFENSIVE_ITEMS, "competitive_"
-    );
-    buildBlurNoteSection(
-        document.getElementById("defensive-container"),
-        DEFENSIVE_ITEMS, "competitive_"
-    );
+    buildBlurNoteSection(document.getElementById("diagnostic-container"), DIAGNOSTIC_ITEMS, "competitive_");
+    buildBlurNoteSection(document.getElementById("offensive-container"),  OFFENSIVE_ITEMS,  "competitive_");
+    buildBlurNoteSection(document.getElementById("defensive-container"),  DEFENSIVE_ITEMS,  "competitive_");
 
-    // ── Firm Level Profitability Factors (ratings + notes) ────────────
     function buildProfitabilityFactors() {
         const container = document.getElementById("firm-profitability-container");
         container.innerHTML = "";
-
         PROFITABILITY_FACTORS.forEach(factor => {
-            const block = document.createElement("div");
-            block.className = "force-row";
-
-            // Label
-            const lbl = document.createElement("div");
-            lbl.className   = "force-label";
-            lbl.textContent = factor.label;
-
-            // Rating buttons
-            const btns = document.createElement("div");
-            btns.className = "rating-btn-group";
+            const block = document.createElement("div"); block.className = "force-row";
+            const lbl   = document.createElement("div"); lbl.className = "force-label"; lbl.textContent = factor.label;
+            const btns  = document.createElement("div"); btns.className = "rating-btn-group";
             for (let i = 1; i <= 5; i++) {
                 const btn = document.createElement("button");
-                btn.className      = "rating-btn";
-                btn.textContent    = i;
-                btn.dataset.value  = i;
-                btn.dataset.field  = factor.field;
-                btn.addEventListener("click", () => {
-                    saveProfitabilityRating(factor.field, i, btns);
-                });
+                btn.className = "rating-btn"; btn.textContent = i;
+                btn.dataset.value = i; btn.dataset.field = factor.field;
+                btn.addEventListener("click", () => saveProfitabilityRating(factor.field, i, btns));
                 btns.appendChild(btn);
             }
-            const feedback = document.createElement("span");
-            feedback.className = "rating-feedback";
+            const feedback = document.createElement("span"); feedback.className = "rating-feedback";
             btns.appendChild(feedback);
-
-            // Notes (blur save)
-            const noteWrap = document.createElement("div");
-            noteWrap.className = "blur-notes-wrap";
+            const noteWrap = document.createElement("div"); noteWrap.className = "blur-notes-wrap";
             const ta = document.createElement("textarea");
-            ta.className   = "analysis-notes-box blur-notes-box";
-            ta.rows        = 2;
-            ta.placeholder = `Notes on ${factor.label.toLowerCase()}…`;
-            ta.dataset.field = factor.field;
-            const noteFeedback = document.createElement("span");
-            noteFeedback.className = "blur-save-feedback";
-            ta.addEventListener("blur", () => {
-                saveStockAnalysis({ [`profitability_notes_${factor.field}`]: ta.value });
-                showBlurFeedback(noteFeedback);
-            });
-            noteWrap.appendChild(ta);
-            noteWrap.appendChild(noteFeedback);
-
-            block.appendChild(lbl);
-            block.appendChild(btns);
-            block.appendChild(noteWrap);
+            ta.className = "analysis-notes-box blur-notes-box"; ta.rows = 2;
+            ta.placeholder = `Notes on ${factor.label.toLowerCase()}…`; ta.dataset.field = factor.field;
+            const noteFeedback = document.createElement("span"); noteFeedback.className = "blur-save-feedback";
+            ta.addEventListener("blur", () => { saveStockAnalysis({ [`profitability_notes_${factor.field}`]: ta.value }); showBlurFeedback(noteFeedback); });
+            noteWrap.appendChild(ta); noteWrap.appendChild(noteFeedback);
+            block.appendChild(lbl); block.appendChild(btns); block.appendChild(noteWrap);
             container.appendChild(block);
         });
     }
     buildProfitabilityFactors();
 
-    // ── Save profitability rating to analysis.json ────────────────────
     async function saveProfitabilityRating(field, value, btnsContainer) {
         btnsContainer.querySelectorAll(".rating-btn").forEach(b => {
-            b.classList.toggle("active", parseInt(b.dataset.value) === value);
-            b.disabled = true;
+            b.classList.toggle("active", parseInt(b.dataset.value) === value); b.disabled = true;
         });
         const feedback = btnsContainer.querySelector(".rating-feedback");
         if (feedback) feedback.textContent = "Saving…";
-
         try {
-            await saveStockAnalysis({
-                firm_profitability: { [field]: value }
-            });
-            if (feedback) {
-                feedback.textContent = "Saved ✓";
-                setTimeout(() => { feedback.textContent = ""; }, 2000);
-            }
-        } catch (e) {
-            if (feedback) feedback.textContent = "Error";
-        } finally {
-            btnsContainer.querySelectorAll(".rating-btn").forEach(b => { b.disabled = false; });
-        }
+            await saveStockAnalysis({ firm_profitability: { [field]: value } });
+            if (feedback) { feedback.textContent = "Saved ✓"; setTimeout(() => { feedback.textContent = ""; }, 2000); }
+        } catch (e) { if (feedback) feedback.textContent = "Error"; }
+        finally { btnsContainer.querySelectorAll(".rating-btn").forEach(b => { b.disabled = false; }); }
     }
 
-    // ── Generic save to /api/analysis/stock/<symbol> ──────────────────
     async function saveStockAnalysis(updates) {
         if (!activeSymbol) return;
         try {
             await fetch(`/api/analysis/stock/${encodeURIComponent(activeSymbol)}`, {
-                method:  "POST",
-                headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify(updates),
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updates),
             });
-        } catch (e) {
-            console.error("Analysis save failed:", e);
-        }
+        } catch (e) { console.error("Analysis save failed:", e); }
     }
 
-    // ── Brief "Saved" feedback for blur-save fields ───────────────────
     function showBlurFeedback(el) {
         if (!el) return;
         el.textContent = "Saved ✓";
         setTimeout(() => { el.textContent = ""; }, 2000);
     }
 
-    // ── Load analysis area for a symbol ──────────────────────────────
     async function loadAnalysisArea(symbol) {
         analysisArea.style.display = "block";
-
-        // Reset all fields first
         industrySelect.value = "";
         groupSelect.innerHTML = '<option value="">— Select industry first —</option>';
         groupSelect.disabled  = true;
@@ -915,25 +840,17 @@
         document.querySelectorAll('input[name="firm_strategy"]').forEach(r => r.checked = false);
         updateStrategyGlow();
         firmStrategyNotes.value = "";
-
-        // Clear all blur-save textareas
         document.querySelectorAll(".blur-notes-box").forEach(ta => { ta.value = ""; });
-
-        // Clear profitability rating buttons
-        document.querySelectorAll("#firm-profitability-container .rating-btn")
-            .forEach(b => b.classList.remove("active"));
+        document.querySelectorAll("#firm-profitability-container .rating-btn").forEach(b => b.classList.remove("active"));
 
         try {
             const res  = await fetch(`/api/analysis/stock/${encodeURIComponent(symbol)}`);
             const data = await res.json();
             const d    = data.data || {};
 
-            // Restore industry selection
             if (d.assigned_industry) {
                 industrySelect.value = d.assigned_industry;
                 industrySelect.dispatchEvent(new Event("change"));
-
-                // Restore group after a tick so the group options are populated
                 setTimeout(() => {
                     if (d.assigned_strategic_group) {
                         groupSelect.value = d.assigned_strategic_group;
@@ -942,61 +859,39 @@
                 }, 50);
             }
 
-            // Restore firm strategy radio
             if (d.firm_strategy) {
-                const radio = document.querySelector(
-                    `input[name="firm_strategy"][value="${d.firm_strategy}"]`
-                );
+                const radio = document.querySelector(`input[name="firm_strategy"][value="${d.firm_strategy}"]`);
                 if (radio) { radio.checked = true; updateStrategyGlow(); }
             }
+            if (d.firm_strategy_notes) firmStrategyNotes.value = d.firm_strategy_notes;
 
-            // Restore firm strategy notes
-            if (d.firm_strategy_notes) {
-                firmStrategyNotes.value = d.firm_strategy_notes;
-            }
-
-            // Restore competitive profile notes
-            const allFields = [
-                ...DIAGNOSTIC_ITEMS, ...OFFENSIVE_ITEMS, ...DEFENSIVE_ITEMS
-            ];
-            allFields.forEach(item => {
+            [...DIAGNOSTIC_ITEMS, ...OFFENSIVE_ITEMS, ...DEFENSIVE_ITEMS].forEach(item => {
                 const key = "competitive_" + item.field;
                 if (d[key]) {
-                    const ta = document.querySelector(
-                        `.blur-notes-box[data-field="${item.field}"]`
-                    );
+                    const ta = document.querySelector(`.blur-notes-box[data-field="${item.field}"]`);
                     if (ta) ta.value = d[key];
                 }
             });
 
-            // Restore profitability ratings + notes
             if (d.firm_profitability) {
                 PROFITABILITY_FACTORS.forEach(factor => {
                     const rating = d.firm_profitability[factor.field];
                     if (rating) {
-                        document.querySelectorAll(
-                            `#firm-profitability-container .rating-btn[data-field="${factor.field}"]`
-                        ).forEach(b => {
-                            b.classList.toggle("active", parseInt(b.dataset.value) === rating);
-                        });
+                        document.querySelectorAll(`#firm-profitability-container .rating-btn[data-field="${factor.field}"]`)
+                            .forEach(b => { b.classList.toggle("active", parseInt(b.dataset.value) === rating); });
                     }
                 });
             }
 
-            // Restore profitability notes
             PROFITABILITY_FACTORS.forEach(factor => {
                 const key = `profitability_notes_${factor.field}`;
                 if (d[key]) {
-                    const ta = document.querySelector(
-                        `#firm-profitability-container .blur-notes-box[data-field="${factor.field}"]`
-                    );
+                    const ta = document.querySelector(`#firm-profitability-container .blur-notes-box[data-field="${factor.field}"]`);
                     if (ta) ta.value = d[key];
                 }
             });
 
-        } catch (e) {
-            console.error("Could not load analysis data:", e);
-        }
+        } catch (e) { console.error("Could not load analysis data:", e); }
     }
 </script>
 

@@ -317,12 +317,14 @@ function buildDCFTable(year1, growthRate, discountRate, shares) {
 
     let npv = 0;
     let earnings = year1;
+    let year10earnings = year1;
 
     for (let yr = 1; yr <= 10; yr++) {
         if (yr > 1) earnings = earnings * (1 + growthRate);
         const discountFactor  = 1 / Math.pow(1 + discountRate, yr);
         const discountedValue = earnings * discountFactor;
         npv += discountedValue;
+        if (yr === 10) year10earnings = earnings;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -333,22 +335,61 @@ function buildDCFTable(year1, growthRate, discountRate, shares) {
         dcfTableBody.appendChild(tr);
     }
 
+    // Terminal value = Year 10 earnings / (discount rate - 1%)
+    const terminalRate     = discountRate - 0.01;
+    const terminalValue    = year10earnings / terminalRate;
+    const terminalDiscount = 1 / Math.pow(1 + discountRate, 10);
+    const terminalPV       = terminalValue * terminalDiscount;
+    const totalIntrinsic   = npv + terminalPV;
+
+    // NPV row
     const tfNpv = document.createElement("tr");
     tfNpv.className = "dcf-total-row";
     tfNpv.innerHTML = `
         <td colspan="3" style="text-align:right; font-weight:bold;">
-            Sum of Discounted Values (NPV)
+            Sum of Discounted Cash Flows (NPV)
         </td>
         <td class="dcf-highlight dcf-total-value">${fmtDollar(npv)}</td>`;
     dcfTableFoot.appendChild(tfNpv);
 
+    // Terminal value calculation rows
+    const tfTv1 = document.createElement("tr");
+    tfTv1.className = "dcf-total-row";
+    tfTv1.innerHTML = `
+        <td colspan="3" style="text-align:right;">
+            Terminal Value = Year 10 earnings ÷ (${(discountRate*100).toFixed(1)}% − 1%) =
+            ${fmtDollar(year10earnings)} ÷ ${(terminalRate*100).toFixed(1)}%
+        </td>
+        <td class="dcf-highlight dcf-total-value">${fmtDollar(terminalValue)}</td>`;
+    dcfTableFoot.appendChild(tfTv1);
+
+    const tfTv2 = document.createElement("tr");
+    tfTv2.className = "dcf-total-row";
+    tfTv2.innerHTML = `
+        <td colspan="3" style="text-align:right;">
+            Discounted Terminal Value = ${fmtDollar(terminalValue)} × 1/(1+${(discountRate*100).toFixed(1)}%)^10
+        </td>
+        <td class="dcf-highlight dcf-total-value">${fmtDollar(terminalPV)}</td>`;
+    dcfTableFoot.appendChild(tfTv2);
+
+    // Total intrinsic value row
+    const tfTotal = document.createElement("tr");
+    tfTotal.className = "dcf-total-row";
+    tfTotal.innerHTML = `
+        <td colspan="3" style="text-align:right; font-weight:bold;">
+            Total Intrinsic Value = NPV + Discounted Terminal Value
+        </td>
+        <td class="dcf-highlight dcf-total-value">${fmtDollar(totalIntrinsic)}</td>`;
+    dcfTableFoot.appendChild(tfTotal);
+
+    // Per share row (only if shares provided)
     if (shares) {
-        const sharePrice = npv / shares;
+        const sharePrice = totalIntrinsic / shares;
         const tfShare = document.createElement("tr");
         tfShare.className = "dcf-total-row dcf-share-row";
         tfShare.innerHTML = `
             <td colspan="3" style="text-align:right; font-weight:bold;">
-                NPV ÷ ${fmt(shares, 0)} shares = Intrinsic Value Per Share
+                Total Intrinsic Value ÷ ${fmt(shares, 0)} shares = Per Share Value
             </td>
             <td class="dcf-highlight dcf-total-value dcf-summary-highlight">
                 ${fmtDollar(sharePrice)}

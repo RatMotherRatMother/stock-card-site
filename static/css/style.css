@@ -1623,3 +1623,33 @@ tbody td {
     color: #8a7860;
     text-shadow: none;
 }
+
+/* ── Industry Tarot grid section labels ─────────────────────────── */
+.tarot-grid-section-label {
+    width: 100%;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 0.84rem;
+    font-weight: bold;
+    color: #a09070;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 8px 0 4px;
+    border-bottom: 1px solid #4a423a;
+    margin-bottom: 4px;
+    flex-basis: 100%;
+}
+
+/* Parent industry label shown under a strategic group card */
+.tarot-card-sublabel {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 0.66rem;
+    color: #a09070;
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    pointer-events: none;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.9);
+}

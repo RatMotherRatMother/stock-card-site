@@ -17,13 +17,13 @@
 
 <h1>Industry Tarot</h1>
 <p style="color:#6a5c48; font-family:Georgia,serif; font-size:0.84rem; margin-bottom:20px;">
-    Click a card to analyse the industry.
+    Click a card to analyse the industry or strategic group.
 </p>
 
 <!-- Card grid — populated by JS -->
 <div id="tarot-grid">
     <span id="tarot-status" style="color:#6a5c48; font-style:italic; font-size:0.82rem;">
-        Loading industries…
+        Loading…
     </span>
 </div>
 
@@ -33,222 +33,253 @@
 <div id="tarot-modal-overlay">
     <div id="tarot-modal-content">
 
-        <!-- Close button -->
         <button id="tarot-modal-close" title="Close (Esc)">✕</button>
 
-        <!-- Modal header -->
         <h2 id="tarot-modal-title">—</h2>
         <p id="tarot-modal-subtitle" style="color:#6a5c48; font-family:Georgia,serif;
-            font-size:0.82rem; margin-bottom:20px;">Industry Analysis</p>
+            font-size:0.82rem; margin-bottom:20px;"></p>
 
-        <!-- ── Five Forces of Profitability ───────────────────────── -->
-        <div class="analysis-section">
-            <h3>Five Forces of Profitability</h3>
-            <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:14px;">
-                Rate each force 1 (low) → 5 (high). Saves instantly to Google Sheets.
-            </p>
-
-            <div id="five-forces-container">
-                <!-- Populated by JS -->
+        <!-- Industry card sections -->
+        <div id="modal-industry-sections">
+            <div class="analysis-section">
+                <h3>Five Forces of Profitability</h3>
+                <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:14px;">
+                    Rate each force 1 (low) → 5 (high). Saves instantly to Google Sheets.
+                </p>
+                <div id="five-forces-container"></div>
+            </div>
+            <div class="analysis-section">
+                <h3>Structural Analysis</h3>
+                <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:14px;">
+                    Notes on each structural dimension.
+                </p>
+                <div id="structural-container"></div>
             </div>
         </div>
 
-        <!-- ── Structural Analysis ────────────────────────────────── -->
-        <div class="analysis-section">
-            <h3>Structural Analysis</h3>
-            <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:14px;">
-                Notes on each structural dimension.
-            </p>
-
-            <div id="structural-container">
-                <!-- Populated by JS -->
+        <!-- Strategic group card sections -->
+        <div id="modal-group-sections">
+            <div class="analysis-section">
+                <h3>Levels of Competition Strength</h3>
+                <p style="color:#6a5c48; font-size:0.78rem; margin-bottom:14px;">
+                    Rate each factor 1 (low) → 5 (high). Saves instantly to Google Sheets.
+                </p>
+                <div id="group-ratings-container"></div>
             </div>
         </div>
 
-    </div><!-- /#tarot-modal-content -->
-</div><!-- /#tarot-modal-overlay -->
+    </div>
+</div>
 
 <!-- ------------------------------------------------------------------ -->
 <!-- JavaScript                                                           -->
 <!-- ------------------------------------------------------------------ -->
 <script>
-// ===========================================================================
-// Industry Tarot — page script
-// ===========================================================================
-
-// ── Config: Five Forces ──────────────────────────────────────────────────────
-// Each entry maps a display label to the Google Sheets column name (field).
 const FIVE_FORCES = [
-    { label: "Bargaining power of suppliers", field: "supplier_power"  },
-    { label: "Bargaining power of buyers",    field: "buyer_power"     },
-    { label: "Threat of new entrants",        field: "new_entrants"    },
-    { label: "Threat of substitutes",         field: "substitutes"     },
-    { label: "Rivalry among existing firms",  field: "rivalry"         },
+    { label: "Bargaining power of suppliers", field: "supplier_power" },
+    { label: "Bargaining power of buyers",    field: "buyer_power"    },
+    { label: "Threat of new entrants",        field: "new_entrants"   },
+    { label: "Threat of substitutes",         field: "substitutes"    },
+    { label: "Rivalry among existing firms",  field: "rivalry"        },
 ];
 
-// ── Config: Structural Analysis ──────────────────────────────────────────────
-// Each entry is a note-box label. Notes are stored in notes.json using the
-// namespaced key  "industry::<IndustryName>::<field>"
 const STRUCTURAL_ITEMS = [
-    { label: "Specialization",                   field: "specialization"         },
-    { label: "Brand Identification",             field: "brand_identification"   },
-    { label: "Push vs Pull",                     field: "push_vs_pull"           },
-    { label: "Channel Selection",                field: "channel_selection"      },
-    { label: "Product Quality",                  field: "product_quality"        },
-    { label: "Tech Leadership",                  field: "tech_leadership"        },
-    { label: "Vertical Integration",             field: "vertical_integration"   },
-    { label: "Cost Position",                    field: "cost_position"          },
-    { label: "Service",                          field: "service"                },
-    { label: "Price Policy",                     field: "price_policy"           },
-    { label: "Leverage",                         field: "leverage"               },
-    { label: "Relationship with Parent Company", field: "relationship_parent"    },
-    { label: "Relationship to Government",       field: "relationship_govt"      },
+    { label: "Specialization",                   field: "specialization"       },
+    { label: "Brand Identification",             field: "brand_identification" },
+    { label: "Push vs Pull",                     field: "push_vs_pull"         },
+    { label: "Channel Selection",                field: "channel_selection"    },
+    { label: "Product Quality",                  field: "product_quality"      },
+    { label: "Tech Leadership",                  field: "tech_leadership"      },
+    { label: "Vertical Integration",             field: "vertical_integration" },
+    { label: "Cost Position",                    field: "cost_position"        },
+    { label: "Service",                          field: "service"              },
+    { label: "Price Policy",                     field: "price_policy"         },
+    { label: "Leverage",                         field: "leverage"             },
+    { label: "Relationship with Parent Company", field: "relationship_parent"  },
+    { label: "Relationship to Government",       field: "relationship_govt"    },
 ];
 
-// ── State ────────────────────────────────────────────────────────────────────
-let _activeIndustry = null;   // the full industry row object currently open
-let _allIndustries  = [];     // cached list from /api/industries
+const GROUP_RATINGS = [
+    { label: "Target customer overlap",   field: "customer_overlap" },
+    { label: "Protect differentiation",   field: "differentiation"  },
+    { label: "Number of groups and size", field: "number_and_size"  },
+    { label: "Strategy overlap",          field: "strategy_overlap" },
+];
 
-// ── DOM refs ─────────────────────────────────────────────────────────────────
-const grid          = document.getElementById("tarot-grid");
-const status        = document.getElementById("tarot-status");
-const overlay       = document.getElementById("tarot-modal-overlay");
-const modalContent  = document.getElementById("tarot-modal-content");
-const modalClose    = document.getElementById("tarot-modal-close");
-const modalTitle    = document.getElementById("tarot-modal-title");
-const forcesContainer     = document.getElementById("five-forces-container");
-const structuralContainer = document.getElementById("structural-container");
+let _allIndustries = [];
+let _allGroups     = [];
+
+const grid                  = document.getElementById("tarot-grid");
+const status                = document.getElementById("tarot-status");
+const overlay               = document.getElementById("tarot-modal-overlay");
+const modalClose            = document.getElementById("tarot-modal-close");
+const modalTitle            = document.getElementById("tarot-modal-title");
+const modalSubtitle         = document.getElementById("tarot-modal-subtitle");
+const modalIndustrySections = document.getElementById("modal-industry-sections");
+const modalGroupSections    = document.getElementById("modal-group-sections");
+const forcesContainer       = document.getElementById("five-forces-container");
+const structuralContainer   = document.getElementById("structural-container");
+const groupRatingsContainer = document.getElementById("group-ratings-container");
 
 // ===========================================================================
-// 1. Load and render the card grid
+// 1. Load both APIs in parallel and render the grid
 // ===========================================================================
-async function loadIndustries() {
+async function loadAll() {
     try {
-        const res  = await fetch("/api/industries");
-        const data = await res.json();
-        _allIndustries = data.industries || [];
+        const [indRes, grpRes] = await Promise.all([
+            fetch("/api/industries"),
+            fetch("/api/strategic_groups"),
+        ]);
+        const indData = await indRes.json();
+        const grpData = await grpRes.json();
 
-        if (_allIndustries.length === 0) {
-            status.textContent = "No industries found. Add rows to the industries sheet.";
+        _allIndustries = indData.industries || [];
+        _allGroups     = grpData.groups     || [];
+
+        if (_allIndustries.length === 0 && _allGroups.length === 0) {
+            status.textContent = "No cards found. Add rows to the industries and strategic_groups sheets.";
             return;
         }
 
         status.style.display = "none";
-        renderGrid(_allIndustries);
+        renderGrid();
     } catch (err) {
-        status.textContent = `Error loading industries: ${err}`;
+        status.textContent = `Error loading cards: ${err}`;
     }
 }
 
-function renderGrid(industries) {
-    // Remove any previously rendered cards (keep the status span)
-    grid.querySelectorAll(".tarot-card").forEach(c => c.remove());
+function renderGrid() {
+    grid.querySelectorAll(".tarot-card, .tarot-grid-section-label").forEach(c => c.remove());
 
-    industries.forEach(ind => {
-        const card = document.createElement("div");
-        card.className = "tarot-card";
-        card.dataset.industry = ind.industry;
+    // Industry cards
+    if (_allIndustries.length > 0) {
+        const lbl = document.createElement("div");
+        lbl.className   = "tarot-grid-section-label";
+        lbl.textContent = "Industries";
+        grid.appendChild(lbl);
 
-        if (ind.image_url) {
-            const img = document.createElement("img");
-            img.src = ind.image_url;
-            img.alt = ind.industry;
-            img.loading = "lazy";
-            card.appendChild(img);
-        } else {
-            // Fallback panel when no image is set
-            card.classList.add("tarot-card--no-image");
-        }
+        _allIndustries.forEach(ind => {
+            grid.appendChild(
+                makeCard(ind.image_url, ind.industry, "industry", "", () => openIndustryModal(ind))
+            );
+        });
+    }
 
-        // Industry name label overlaid on the card
-        const label = document.createElement("div");
-        label.className = "tarot-card-label";
-        label.textContent = ind.industry;
-        card.appendChild(label);
+    // Strategic group cards
+    if (_allGroups.length > 0) {
+        const lbl = document.createElement("div");
+        lbl.className   = "tarot-grid-section-label";
+        lbl.textContent = "Strategic Groups";
+        grid.appendChild(lbl);
 
-        card.addEventListener("click", () => openModal(ind));
-        grid.appendChild(card);
-    });
+        _allGroups.forEach(grp => {
+            grid.appendChild(
+                makeCard(grp.image_url, grp.group, "group",
+                    grp.parent_industry ? `(${grp.parent_industry})` : "",
+                    () => openGroupModal(grp))
+            );
+        });
+    }
+}
+
+function makeCard(imageUrl, name, type, subtitle, onClickFn) {
+    const card = document.createElement("div");
+    card.className = `tarot-card tarot-card--${type}`;
+
+    if (imageUrl) {
+        const img = document.createElement("img");
+        img.src     = imageUrl;
+        img.alt     = name;
+        img.loading = "lazy";
+        card.appendChild(img);
+    } else {
+        card.classList.add("tarot-card--no-image");
+    }
+
+    const label = document.createElement("div");
+    label.className   = "tarot-card-label";
+    label.textContent = name;
+    card.appendChild(label);
+
+    if (subtitle) {
+        const sub = document.createElement("div");
+        sub.className   = "tarot-card-sublabel";
+        sub.textContent = subtitle;
+        card.appendChild(sub);
+    }
+
+    card.addEventListener("click", onClickFn);
+    return card;
 }
 
 // ===========================================================================
 // 2. Modal open / close
 // ===========================================================================
-function openModal(industry) {
-    _activeIndustry = industry;
-    modalTitle.textContent = industry.industry;
-
-    // Build the modal body
+function openIndustryModal(industry) {
+    modalTitle.textContent    = industry.industry;
+    modalSubtitle.textContent = "Industry Analysis";
+    modalIndustrySections.style.display = "block";
+    modalGroupSections.style.display    = "none";
     buildFiveForces(industry);
     buildStructural(industry);
-
-    // Show overlay
     overlay.classList.add("visible");
-    document.body.style.overflow = "hidden"; // prevent background scroll
+    document.body.style.overflow = "hidden";
+}
+
+function openGroupModal(group) {
+    modalTitle.textContent    = group.group;
+    modalSubtitle.textContent = group.parent_industry
+        ? `Strategic Group — ${group.parent_industry}`
+        : "Strategic Group Analysis";
+    modalIndustrySections.style.display = "none";
+    modalGroupSections.style.display    = "block";
+    buildGroupRatings(group);
+    overlay.classList.add("visible");
+    document.body.style.overflow = "hidden";
 }
 
 function closeModal() {
     overlay.classList.remove("visible");
     document.body.style.overflow = "";
-    _activeIndustry = null;
 }
 
-// Close on ✕ button
 modalClose.addEventListener("click", closeModal);
-
-// Close on Escape key
 document.addEventListener("keydown", e => {
     if (e.key === "Escape" && overlay.classList.contains("visible")) closeModal();
 });
-
-// Close on click outside the modal content panel
 overlay.addEventListener("click", e => {
     if (e.target === overlay) closeModal();
 });
 
 // ===========================================================================
-// 3. Build Five Forces section
+// 3. Build Five Forces (industry modal)
 // ===========================================================================
 function buildFiveForces(industry) {
     forcesContainer.innerHTML = "";
-
     FIVE_FORCES.forEach(force => {
         const currentRating = industry[force.field] ?? null;
-
-        const row = document.createElement("div");
+        const row  = document.createElement("div");
         row.className = "force-row";
-
-        // Label
-        const lbl = document.createElement("div");
-        lbl.className = "force-label";
+        const lbl  = document.createElement("div");
+        lbl.className   = "force-label";
         lbl.textContent = force.label;
-
-        // Rating buttons 1–5
         const btns = document.createElement("div");
-        btns.className = "rating-btn-group";
-
+        btns.className  = "rating-btn-group";
         for (let i = 1; i <= 5; i++) {
             const btn = document.createElement("button");
-            btn.className = "rating-btn";
-            btn.textContent = i;
+            btn.className     = "rating-btn";
+            btn.textContent   = i;
             btn.dataset.value = i;
             if (currentRating === i) btn.classList.add("active");
-
             btn.addEventListener("click", () =>
                 saveIndustryRating(industry.industry, force.field, i, btns)
             );
             btns.appendChild(btn);
         }
-
-        // Save feedback text
         const feedback = document.createElement("span");
         feedback.className = "rating-feedback";
         btns.appendChild(feedback);
-
-        // Notes box for this force
-        const notesKey = `industry::${industry.industry}::${force.field}`;
-        const notesBox = buildNotesBox(notesKey);
-
+        const notesBox = buildNotesBox(`industry::${industry.industry}::${force.field}`);
         row.appendChild(lbl);
         row.appendChild(btns);
         row.appendChild(notesBox);
@@ -257,22 +288,17 @@ function buildFiveForces(industry) {
 }
 
 // ===========================================================================
-// 4. Build Structural Analysis section
+// 4. Build Structural Analysis (industry modal)
 // ===========================================================================
 function buildStructural(industry) {
     structuralContainer.innerHTML = "";
-
     STRUCTURAL_ITEMS.forEach(item => {
         const block = document.createElement("div");
         block.className = "structural-block";
-
-        const lbl = document.createElement("div");
-        lbl.className = "structural-label";
+        const lbl   = document.createElement("div");
+        lbl.className   = "structural-label";
         lbl.textContent = item.label;
-
-        const notesKey = `industry::${industry.industry}::${item.field}`;
-        const notesBox = buildNotesBox(notesKey);
-
+        const notesBox = buildNotesBox(`industry::${industry.industry}::${item.field}`);
         block.appendChild(lbl);
         block.appendChild(notesBox);
         structuralContainer.appendChild(block);
@@ -280,39 +306,63 @@ function buildStructural(industry) {
 }
 
 // ===========================================================================
-// 5. Notes box builder  (loads existing notes, supports add + delete)
+// 5. Build Competition Strength (strategic group modal)
+// ===========================================================================
+function buildGroupRatings(group) {
+    groupRatingsContainer.innerHTML = "";
+    GROUP_RATINGS.forEach(rating => {
+        const currentRating = group[rating.field] ?? null;
+        const row  = document.createElement("div");
+        row.className = "force-row";
+        const lbl  = document.createElement("div");
+        lbl.className   = "force-label";
+        lbl.textContent = rating.label;
+        const btns = document.createElement("div");
+        btns.className  = "rating-btn-group";
+        for (let i = 1; i <= 5; i++) {
+            const btn = document.createElement("button");
+            btn.className     = "rating-btn";
+            btn.textContent   = i;
+            btn.dataset.value = i;
+            if (currentRating === i) btn.classList.add("active");
+            btn.addEventListener("click", () =>
+                saveGroupRating(group.group, rating.field, i, btns)
+            );
+            btns.appendChild(btn);
+        }
+        const feedback = document.createElement("span");
+        feedback.className = "rating-feedback";
+        btns.appendChild(feedback);
+        const notesBox = buildNotesBox(`group::${group.group}::${rating.field}`);
+        row.appendChild(lbl);
+        row.appendChild(btns);
+        row.appendChild(notesBox);
+        groupRatingsContainer.appendChild(row);
+    });
+}
+
+// ===========================================================================
+// 6. Notes box builder
 // ===========================================================================
 function buildNotesBox(key) {
-    const wrap = document.createElement("div");
+    const wrap     = document.createElement("div");
     wrap.className = "analysis-notes-wrap";
-
-    // Textarea + Post button row
     const inputRow = document.createElement("div");
     inputRow.className = "analysis-notes-input-row";
-
     const textarea = document.createElement("textarea");
-    textarea.className = "analysis-notes-box";
+    textarea.className   = "analysis-notes-box";
     textarea.placeholder = "Add a note…";
-    textarea.rows = 2;
-
+    textarea.rows        = 2;
     const postBtn = document.createElement("button");
-    postBtn.className = "analysis-notes-post-btn";
+    postBtn.className   = "analysis-notes-post-btn";
     postBtn.textContent = "Post";
-
     inputRow.appendChild(textarea);
     inputRow.appendChild(postBtn);
-
-    // Notes list
     const list = document.createElement("ul");
     list.className = "analysis-notes-list";
-
     wrap.appendChild(inputRow);
     wrap.appendChild(list);
-
-    // Load existing notes
     loadNotes(key, list);
-
-    // Post on button click
     postBtn.addEventListener("click", () => {
         const text = textarea.value.trim();
         if (!text) return;
@@ -330,12 +380,9 @@ function buildNotesBox(key) {
         })
         .catch(() => { postBtn.disabled = false; });
     });
-
-    // Ctrl+Enter to post
     textarea.addEventListener("keydown", e => {
         if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) postBtn.click();
     });
-
     return wrap;
 }
 
@@ -350,10 +397,9 @@ function renderNotesList(key, notes, listEl) {
     listEl.innerHTML = "";
     if (notes.length === 0) return;
     notes.forEach((n, i) => {
-        const li   = document.createElement("li");
+        const li  = document.createElement("li");
         li.className = "analysis-notes-item";
-
-        const del  = document.createElement("button");
+        const del = document.createElement("button");
         del.className   = "notes-del-btn";
         del.textContent = "×";
         del.addEventListener("click", () => {
@@ -362,15 +408,12 @@ function renderNotesList(key, notes, listEl) {
                 .then(data => renderNotesList(key, data.notes || [], listEl))
                 .catch(() => {});
         });
-
         const txt  = document.createElement("span");
         txt.className   = "notes-text";
         txt.textContent = n.text;
-
         const meta = document.createElement("span");
         meta.className   = "notes-meta";
         meta.textContent = n.timestamp;
-
         li.appendChild(del);
         li.appendChild(txt);
         li.appendChild(meta);
@@ -379,18 +422,15 @@ function renderNotesList(key, notes, listEl) {
 }
 
 // ===========================================================================
-// 6. Save a Five Forces rating to Google Sheets
+// 7. Save ratings to Google Sheets
 // ===========================================================================
 async function saveIndustryRating(industryName, field, value, btnsContainer) {
-    // Optimistically update button state
     btnsContainer.querySelectorAll(".rating-btn").forEach(b => {
         b.classList.toggle("active", parseInt(b.dataset.value) === value);
         b.disabled = true;
     });
-
     const feedback = btnsContainer.querySelector(".rating-feedback");
-    if (feedback) { feedback.textContent = "Saving…"; }
-
+    if (feedback) feedback.textContent = "Saving…";
     try {
         const res  = await fetch("/api/industry_rating", {
             method:  "POST",
@@ -402,11 +442,37 @@ async function saveIndustryRating(industryName, field, value, btnsContainer) {
             feedback.textContent = data.ok ? "Saved ✓" : `Error: ${data.error}`;
             setTimeout(() => { feedback.textContent = ""; }, 2000);
         }
-        // Update the local cache so reopening the modal shows the new value
         const cached = _allIndustries.find(i => i.industry === industryName);
         if (cached) cached[field] = value;
     } catch (err) {
-        if (feedback) { feedback.textContent = "Save failed"; }
+        if (feedback) feedback.textContent = "Save failed";
+    } finally {
+        btnsContainer.querySelectorAll(".rating-btn").forEach(b => { b.disabled = false; });
+    }
+}
+
+async function saveGroupRating(groupName, field, value, btnsContainer) {
+    btnsContainer.querySelectorAll(".rating-btn").forEach(b => {
+        b.classList.toggle("active", parseInt(b.dataset.value) === value);
+        b.disabled = true;
+    });
+    const feedback = btnsContainer.querySelector(".rating-feedback");
+    if (feedback) feedback.textContent = "Saving…";
+    try {
+        const res  = await fetch("/api/group_rating", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ group: groupName, field, value }),
+        });
+        const data = await res.json();
+        if (feedback) {
+            feedback.textContent = data.ok ? "Saved ✓" : `Error: ${data.error}`;
+            setTimeout(() => { feedback.textContent = ""; }, 2000);
+        }
+        const cached = _allGroups.find(g => g.group === groupName);
+        if (cached) cached[field] = value;
+    } catch (err) {
+        if (feedback) feedback.textContent = "Save failed";
     } finally {
         btnsContainer.querySelectorAll(".rating-btn").forEach(b => { b.disabled = false; });
     }
@@ -415,7 +481,7 @@ async function saveIndustryRating(industryName, field, value, btnsContainer) {
 // ===========================================================================
 // Boot
 // ===========================================================================
-loadIndustries();
+loadAll();
 </script>
 
 </div><!-- /.container -->

@@ -466,7 +466,7 @@ def get_watchlist():
             "symbol":                symbol,
             "price":                 price,
             "market_cap":            format_large_number(raw_market_cap),
-            "pe_ratio":              round(pe_ratio, 2) if pe_ratio else "N/A",
+            "pe_ratio":              safe_round(pe_ratio),
             "current_assets":        format_large_number(current_assets),
             "total_debt":            format_large_number(total_debt),
             "total_liabilities":     format_large_number(total_liab),
@@ -1202,3 +1202,21 @@ if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     port  = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=debug)
+
+
+# Fix (Aug 2026): yfinance sometimes returns pe_ratio as a string ("N/A")
+# instead of None for certain tickers, which crashes round() with
+# "TypeError: type str doesn't define __round__ method". safe_round()
+# handles None, strings, NaN, and inf gracefully instead of erroring out.
+
+    def safe_round(value, decimals=2):
+    """Round a value safely, returning 'N/A' for None/strings/NaN/inf."""
+    try:
+        if value is None:
+            return "N/A"
+        num = float(value)
+        if num != num or num in (float("inf"), float("-inf")):  # NaN check
+            return "N/A"
+        return round(num, decimals)
+    except (TypeError, ValueError):
+        return "N/A"

@@ -1209,7 +1209,7 @@ if __name__ == "__main__":
 # "TypeError: type str doesn't define __round__ method". safe_round()
 # handles None, strings, NaN, and inf gracefully instead of erroring out.
 
-    def safe_round(value, decimals=2):
+def safe_round(value, decimals=2):
     """Round a value safely, returning 'N/A' for None/strings/NaN/inf."""
     try:
         if value is None:
